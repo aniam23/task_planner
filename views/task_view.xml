@@ -45,7 +45,7 @@
             <field name="arch" type="xml">
                 <tree editable="bottom">
                     <field name="name"/>
-                    <field name= "allowed_member_ids" readonly="1"/>
+                    <field name="allowed_member_ids" invisible="1"/>
                     <field name="person" widget="many2one_avatar_user"/>
                     <field name="status" widget="selection"/>
                     <field name="completion_date" widget="daterange"/>
