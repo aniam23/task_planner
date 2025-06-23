@@ -29,7 +29,7 @@ class SubtaskBoard(models.Model):
         compute='_compute_allowed_member_ids',
         help="Members of the parent task's department"
     )
-
+    
     @api.depends('task_id.department_id.member_ids')
     def _compute_allowed_member_ids(self):
         for subtask in self:
@@ -41,9 +41,13 @@ class SubtaskBoard(models.Model):
     @api.constrains('person', 'task_id')
     def _check_person_selection(self):
         for subtask in self:
-            if subtask.task_id.pick_from_dept and subtask.task_id.department_id:
-                if subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids:
-                    raise ValidationError(
+            # Verifica si el task_id existe y tiene department_id
+            if subtask.task_id and subtask.task_id.department_id:
+                # Verifica si pick_from_dept existe y es True, o si no existe el campo
+                pick_from_dept = getattr(subtask.task_id, 'pick_from_dept', True)
+                if pick_from_dept:  # Si es True o el campo no existe
+                    if subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids:
+                        raise ValidationError(
                         "El empleado asignado debe ser miembro del departamento de la tarea principal"
                     )
 
