@@ -1,0 +1,38 @@
+from odoo import models, api, fields
+from odoo.exceptions import ValidationError
+from .boards import STATES
+
+class SubtaskBoard(models.Model):
+    _name = 'subtask.board'
+    _description = 'Subtarea del Planificador de Actividades'
+    _inherit = ['mail.thread']
+    sequence = fields.Integer(string='Sequence', default=10)
+    completion_date = fields.Datetime(string="Timeline")
+    drag = fields.Integer()
+    files = fields.Many2many(comodel_name="ir.attachment", string="Files")
+    name = fields.Char('Subtask Name', required=True)
+    status = fields.Selection(STATES, default="new", string="State")
+    task_id = fields.Many2one('task.board', string='Task', required=True)
+    person = fields.Many2one('hr.employee', string='Assigned To', 
+        tracking=True)
+
+    @api.constrains('person', 'task_id')
+    def _check_person_selection(self):
+        for subtask in self:
+            if subtask.task_id.pick_from_dept and subtask.task_id.department_id:
+                if subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids:
+                    raise ValidationError(
+                        "El empleado asignado debe ser miembro del departamento de la tarea principal"
+                    )
+
+    def open_subtask_form(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Subtask Board',
+            'res_model': 'subtask.board',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('task_planner.activity_planner_subtask_form').id,
+            'target': 'current',
+        }

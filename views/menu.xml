@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+        <odoo>
+            <data>
+                <!-- Menú principal -->
+                <menuitem id="task_planner.menu_root" name="Plannifier" sequence="10"/>
+                
+                <!-- Submenú Boards -->
+                <menuitem id="task_planner.activity_menu_board_action" 
+                         parent="task_planner.menu_root" 
+                         name="Boards" 
+                         action="task_planner.activity_departments_action"
+                         sequence="20"/>
+            </data>
+        </odoo>

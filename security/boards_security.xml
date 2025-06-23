@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+   <record id="boards_security" model="ir.rule">
+      <field name="name">Seguridad de los tableros</field>
+      <field name="model_id" ref="task_planner.model_boards_planner"/>
+      <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+      <field name="domain_force">[(1,'=',1)]</field> <!-- Permite todos los registros -->
+      <field name="perm_read" eval="True"/>
+      <field name="perm_write" eval="True"/>
+      <field name="perm_create" eval="True"/>
+      <field name="perm_unlink" eval="True"/>
+  </record>
+</odoo>

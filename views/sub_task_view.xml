@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="activity_planner_subtask_form" model="ir.ui.view">
+            <field name="name">subtask.planner.form</field>
+            <field name="model">subtask.board</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group col="2">
+                            <group>
+                                <field name="name"/>
+                                <field name="person" widget="many2one_avatar_user"/>
+                                <field name="status"/>
+                                <field name="completion_date"/>
+                            </group>
+                            <group>
+                                <field name="files" widget="many2many_binary"/>
+                            </group>
+                        </group>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="message_ids" widget="mail_thread"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+    </data>
+</odoo>

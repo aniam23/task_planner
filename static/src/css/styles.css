@@ -1,0 +1,148 @@
+.oe_kanban_card {
+    border: 2px solid #162330;
+    border-radius: 12px;
+    padding: 10px;
+    margin: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+}
+
+.oe_kanban_card_header {
+    text-align: left;
+    font-size: 14px;
+    font-weight: bold;
+    color: #2e2529;
+}
+
+.oe_kanban_card_body {
+    padding: 5px 0;
+    text-align: center;
+}
+
+.oe_kanban_card_footer {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.oe_button_access{
+    font-size: small;
+    text-align: center;
+    background-color: #71639e;
+    color: aliceblue;
+    border-radius: 12px;
+    width: fit-content;
+    height: fit-content;
+}
+
+.custom_tree_view {
+    background-color: #ffffff; 
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden; 
+    font-family: 'Arial', sans-serif;
+}
+
+.custom_tree_view thead th {
+    background-color: #71639e;
+    color: white; 
+    padding: 12px; 
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 2px solid #71639e;
+}
+
+.custom_tree_view tbody tr {
+    background-color: transparent; 
+    transition: background-color 0.3s ease;
+}
+
+.custom_tree_view td {
+    padding: 10px;
+    color: #333;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.custom_tree_view td.o_field_widget {
+    font-weight: bold;
+    color: #1E88E5;
+}
+
+.o_task_class{
+    display: flex;
+    text-align: center;
+    width: fit-content;
+}
+
+.o_person_class{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    justify-content: center;
+    width: fit-content;
+}
+
+.o_status_class{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    text-align: center;
+    width: fit-content;
+}
+
+.o_date_class{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: center;
+    text-align: center;
+    width: fit-content;
+}
+
+.o_titles_subtask{
+    font-size: x-large;
+    text-align: left;
+    border-bottom: #2e2529 1px;
+}
+
+.o_details_button{
+    display: block;
+    text-align: center !important;
+    align-items: center;
+    align-self: center;
+    background-color: #71639e;
+    color: #e0e0e0;
+}
+
+.oe_kanban_button_delete{
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: #dc3545 !important; 
+    color: white !important;
+    border-radius: 50%;                    
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;      
+}
+
+.oe_kanban_button_edit{
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background-color: #49dc35 !important; 
+    color: white !important;
+    border-radius: 50%;                    
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.oe_kanban_card:hover .oe_kanban_button_delete {
+    opacity: 1;
+}

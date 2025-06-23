@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="activity_planner_details_view_form" model="ir.ui.view">
+            <field name="name">task.board.details.form</field>
+            <field name="model">task.board</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="name" class="o_titles_subtask" readonly="1"/>
+                            <group col="3">
+                                <field name="person" widget="many2one_avatar_user" readonly="1"/>
+                                <field name="status" widget="selection" readonly="1"/>
+                                <field name="completion_date" widget="daterange" readonly="1"/>
+                                <field name="files" widget="many2many_binary"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Subtask">
+                                <field name="subtask_ids">
+                                    <tree class="o_tree_view">
+                                        <field name="drag" widget="handle"/>
+                                        <field name="name"/>
+                                        <field name="person" widget="many2one_avatar_user"/>
+                                        <field name="status" widget="selection"/>
+                                        <field name="completion_date" widget="daterange" class="oe_table_titles"/>
+                                        <button type="object" class="btn btn-primary" name="open_subtask_form" icon="fa-solid fa-bars"/>
+                                    </tree>
+                                </field>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="message_ids" widget="mail_thread"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+
+        <record id="activity_planner_task_view_tree" model="ir.ui.view">
+            <field name="name">task.board.tree</field>
+            <field name="model">task.board</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom">
+                    <field name="name"/>
+                    <field name="person" widget="many2one_avatar_user"/>
+                    <field name="status" widget="selection"/>
+                    <field name="completion_date" widget="daterange"/>
+                    <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
+            <field name="name">Tasks Board</field>
+            <field name="res_model">task.board</field>
+            <field name="view_mode">form,tree</field>
+            <field name="view_id" ref="activity_planner_task_view_tree"/>
+            <field name="domain">[('department_id', '=', active_id)]</field>
+            <field name="context">{'default_department_id': active_id}</field>
+            <field name="target">current</field>
+        </record>
+    </data>
+</odoo>
