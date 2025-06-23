@@ -1,5 +1,5 @@
 from odoo import models, api, fields
-from odoo.exceptions import UserError
+from odoo.exceptions import ValidationError
 from .boards import STATES
 
 class TaskBoard(models.Model):
@@ -8,50 +8,58 @@ class TaskBoard(models.Model):
     _inherit = ['mail.thread']
 
     completion_date = fields.Datetime(string="Timeline")
-    department_id = fields.Many2one('boards.planner', 
-        string="Department", ondelete='cascade', invisible="1")
+    department_id = fields.Many2one(
+        'boards.planner', 
+        string="Department", 
+        ondelete='cascade',
+        required=True
+    )
     drag = fields.Integer()
-    files = fields.Many2many(comodel_name="ir.attachment", 
-        string="Files")
-    name = fields.Char(string="Task", required=True) 
-    pick_from_dept = fields.Boolean(
-        string="Restrict to Department Members", 
-        default=True,
-        help="When enabled, only department members can be assigned")
-    status = fields.Selection(STATES, default="new", 
-        string="State")
-    subtask_ids = fields.One2many('subtask.board', 'task_id', 
-        string='Subtasks')
-
+    files = fields.Many2many('ir.attachment', string="Files")
+    name = fields.Char(string="Task", required=True)
+    
     person = fields.Many2one(
-        'hr.employee', 
+        'hr.employee',
         string='Assigned To',
         tracking=True,
-        required=True,  
+        required=True,
+        domain="[('id', 'in', allowed_member_ids)]"
     )
 
-    @api.onchange('department_id', 'pick_from_dept')
-    def _onchange_department_restriction(self):
-        if self.pick_from_dept and self.department_id:
-            return {
-                'domain': {
-                    'person': [('id', 'in', self.department_id.member_ids.ids)]
-                }
-            }
-        return {'domain': {'person': []}}
+    status = fields.Selection(STATES, default="new", string="State")
+    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
+
+    allowed_member_ids = fields.Many2many(
+        'hr.employee',
+        compute='_compute_allowed_members',
+        string='Allowed Members'
+    )
+
+    @api.depends('department_id')
+    def _compute_allowed_members(self):
+        for task in self:
+            task.allowed_member_ids = task.department_id.member_ids
+
+    @api.constrains('person', 'department_id')
+    def _check_person_in_department(self):
+        for task in self:
+            if task.department_id and task.person not in task.department_id.member_ids:
+                raise ValidationError(
+                    "El empleado asignado no pertenece al departamento seleccionado. "
+                    "Miembros válidos: %s" % 
+                    ", ".join(task.department_id.member_ids.mapped('name'))
+                )
 
     @api.model
     def create(self, vals):
-        if not vals.get('person'):
-            raise UserError("❌ **Error**: ¡Debe asignar un responsable antes de guardar!")
-        return super().create(vals)
+        task = super().create(vals)
+        task._check_person_in_department()
+        return task
 
     def write(self, vals):
-        if 'person' in vals and not vals['person']:
-            raise UserError("❌ **Error**: ¡No puede dejar la tarea sin responsable!")
-        return super().write(vals)
-    
-   
+        res = super().write(vals)
+        self._check_person_in_department()
+        return res
 
     def open_details_form(self):
         return {
