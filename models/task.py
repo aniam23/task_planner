@@ -14,6 +14,7 @@ class TaskBoard(models.Model):
         ondelete='cascade',
         required=True
     )
+    
     drag = fields.Integer()
     files = fields.Many2many('ir.attachment', string="Files")
     name = fields.Char(string="Task", required=True)
@@ -49,7 +50,7 @@ class TaskBoard(models.Model):
                 task.color = 1  # Rojo
             else:
                 task.color = 0  # Por defecto
-                
+
     @api.depends('department_id')
     def _compute_allowed_members(self):
         for task in self:
