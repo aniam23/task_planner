@@ -14,7 +14,6 @@ class SubtaskBoard(models.Model):
     name = fields.Char('Subtask Name', required=True)
     status = fields.Selection(STATES, default="new", string="State")
     task_id = fields.Many2one('task.board', string='Task', required=True)
-    
     person = fields.Many2one(
         'hr.employee', 
         string='Assigned To', 

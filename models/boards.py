@@ -11,7 +11,6 @@ STATES = [
 class Boards(models.Model):
     _name= 'boards.planner'
     _description= 'Model designed to create or modify tasks asigned to employe'
-
     name = fields.Char(string="Tablero")
     department_id = fields.Many2one('hr.department', string='Departamento')
     responsible_person_id = fields.Many2one('hr.employee', related='department_id.manager_id')

@@ -14,24 +14,26 @@
     'sequence': 1,
 
     'version': '1.0',
-
+    
     'depends': ['base', 'web', 'mail', 'hr'],
 
     'data': [
-        'views/menu.xml',
-        'views/boards_view.xml',
-        'views/sub_task_view.xml',
-        'views/task_view.xml',
-        'security/ir.model.access.csv',
-        'security/boards_security.xml',
+    'security/ir.model.access.csv',  
+    'security/boards_security.xml',  
+    'views/boards_view.xml',         
+    'views/task_view.xml',
+    'views/sub_task_view.xml',
+    'views/menu.xml',                  
     ],
     
-    'assets': {
-        'web.assets_backend': [
-            'task_planner/static/src/css/styles.css', 
-        ],
-    },
-    
+    # 'assets': {
+    # 'web.assets_backend': [
+    #     'task_planner/static/src/xml/assets.xml',
+    #     'task_planner/static/src/js/task_board.js',
+    #     'task_planner/static/src/css/task_board.css',
+    #     ],
+    # },
+
     'installable': True,
     'application': True,
     'license': 'GPL-3',

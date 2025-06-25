@@ -28,7 +28,6 @@
                 </kanban>
             </field>
         </record>
-
         <record id="task_planner.activity_departments_action" model="ir.actions.act_window">
             <field name="name">Departments Board</field>
             <field name="res_model">boards.planner</field>

@@ -34,7 +34,22 @@ class TaskBoard(models.Model):
         compute='_compute_allowed_members',
         string='Allowed Members'
     )
+    color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
 
+    @api.depends('status')
+    def _compute_color_from_state(self):
+        for task in self:
+            if task.status == 'new':
+                task.color = 2  # Amarillo
+            elif task.status == 'in_progress':
+                task.color = 5  # Naranja
+            elif task.status == 'done':
+                task.color = 10  # Verde
+            elif task.status == 'stuck':
+                task.color = 1  # Rojo
+            else:
+                task.color = 0  # Por defecto
+                
     @api.depends('department_id')
     def _compute_allowed_members(self):
         for task in self:
