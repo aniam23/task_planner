@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Vista Formulario (se mantiene similar) -->
         <record id="activity_planner_details_view_form" model="ir.ui.view">
             <field name="name">task.board.details.form</field>
             <field name="model">task.board</field>
@@ -13,17 +12,17 @@
                             <group col="3">
                                 <field name="person" widget="many2one_avatar_user" readonly="1"/>
                                 <field name="status" widget="selection" readonly="1"/>
-                                <field name="completion_date" widget="daterange" readonly="1"/>
+                                <field name="completion_date" widget="daterange"/>
                                 <field name="files" widget="many2many_binary"/>
-                            </group>
+                            </group>    
                         </group>
                         <notebook>
                             <page string="Subtask">
                                 <field name="subtask_ids">
                                     <tree class="o_tree_view" decoration-danger="status == 'stuck'" 
-                                                          decoration-warning="status == 'new'"
-                                                          decoration-info="status == 'in_progress'"
-                                                          decoration-success="status == 'done'">
+                                        decoration-warning="status == 'new'"
+                                        decoration-info="status == 'in_progress'"
+                                        decoration-success="status == 'done'">
                                         <field name="drag" widget="handle"/>
                                         <field name="name"/>
                                         <field name="person" widget="many2one_avatar_user"/>
@@ -42,8 +41,7 @@
                 </form>
             </field>
         </record>
-
-        <!-- Vista Tree con colores por estado -->
+        <!-- Resto de tus vistas se mantienen igual -->
         <record id="activity_planner_task_view_tree" model="ir.ui.view">
             <field name="name">task.board.tree</field>
             <field name="model">task.board</field>
@@ -58,11 +56,11 @@
                     <field name="status" widget="selection"/>
                     <field name="completion_date" widget="daterange"/>
                     <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
+                    <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
                 </tree>
             </field>
         </record>
 
-        <!-- Vista Kanban (nueva) para mejor visualización -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
@@ -71,19 +69,28 @@
                     <field name="color"/>
                     <templates>
                         <t t-name="kanban-box">
-                            <div t-attf-class="oe_kanban_color_{{record.color.raw_value}} kanban_record">
+                            <div class="oe_kanban_global_click">
                                 <div class="oe_kanban_content">
-                                    <div>
+                                    <!-- Columna 1: Nombre y progreso -->
+                                    <div class="col-md-8">
                                         <strong><field name="name"/></strong>
+                                        <div class="mt-2">
+                                            <field name="progress" widget="progressbar" 
+                                                   options="{'max_value': 100, 'height': '10px'}"/>
+                                            <small class="text-muted">
+                                                <field name="completed_subtasks"/>/<field name="total_subtasks"/> subtareas
+                                            </small>
+                                        </div>
                                     </div>
-                                    <div>
+                                    <!-- Columna 2: Información adicional -->
+                                    <div class="col-md-4 text-right">
                                         <field name="person" widget="many2one_avatar_user"/>
-                                    </div>
-                                    <div>
-                                        <field name="status"/>
-                                    </div>
-                                    <div>
-                                        <field name="completion_date" widget="daterange"/>
+                                        <div>
+                                            <field name="status" widget="badge"/>
+                                        </div>
+                                        <div>
+                                            <field name="completion_date" widget="daterange"/>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -93,7 +100,6 @@
             </field>
         </record>
 
-        <!-- Actualizar la acción para incluir vista kanban -->
         <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
             <field name="name">Tasks Board</field>
             <field name="res_model">task.board</field>
@@ -103,5 +109,6 @@
             <field name="context">{'default_department_id': active_id}</field>
             <field name="target">current</field>
         </record>
+        
     </data>
 </odoo>

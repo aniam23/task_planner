@@ -14,7 +14,7 @@ class TaskBoard(models.Model):
         ondelete='cascade',
         required=True
     )
-    
+
     drag = fields.Integer()
     files = fields.Many2many('ir.attachment', string="Files")
     name = fields.Char(string="Task", required=True)
@@ -27,6 +27,8 @@ class TaskBoard(models.Model):
         domain="[('id', 'in', allowed_member_ids)]"
     )
 
+    color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
+
     status = fields.Selection(STATES, default="new", string="State")
     subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
 
@@ -35,8 +37,39 @@ class TaskBoard(models.Model):
         compute='_compute_allowed_members',
         string='Allowed Members'
     )
+
     color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
 
+    completed_subtasks = fields.Integer(
+        string="Completed Subtasks",
+        compute='_compute_progress',
+        store=True,
+        default=0  # Añadir valor por defecto
+    )
+    
+    total_subtasks = fields.Integer(
+        string="Total Subtasks",
+        compute='_compute_progress',
+        store=True,
+        default=0  # Añadir valor por defecto
+    )
+
+    progress = fields.Float(
+    string="Progress", 
+    compute='_compute_progress', 
+    store=True,
+    group_operator="avg",
+    default=0.0
+    )
+
+    @api.depends('subtask_ids', 'subtask_ids.status')
+    def _compute_progress(self):
+        for task in self:
+            completed = task.subtask_ids.filtered(lambda x: x.status == 'done')
+            task.completed_subtasks = len(completed)
+            task.total_subtasks = len(task.subtask_ids)
+            task.progress = (task.completed_subtasks / task.total_subtasks) * 100 if task.total_subtasks > 0 else 0
+            
     @api.depends('status')
     def _compute_color_from_state(self):
         for task in self:
