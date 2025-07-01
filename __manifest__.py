@@ -26,13 +26,15 @@
     'views/menu.xml',                  
     ],
     
-    # 'assets': {
-    # 'web.assets_backend': [
-    #     'task_planner/static/src/xml/assets.xml',
-    #     'task_planner/static/src/js/task_board.js',
-    #     'task_planner/static/src/css/task_board.css',
-    #     ],
-    # },
+    'assets': {
+    'web.assets_backend': [
+        'task_planner/static/src/js/tree_view.js',
+    ],
+    },
+
+    'qweb': [
+        'task_planner/static/src/xml/assets.xml',
+    ],
 
     'installable': True,
     'application': True,

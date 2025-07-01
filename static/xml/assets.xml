@@ -1,25 +1,14 @@
-<template id="assets_backend" inherit_id="web.assets_backend">
-    <xpath expr="." position="inside">
-        <style>
-            .task-state-new {
-                background-color: #E3F2FD !important; /* Azul claro */
-            }
-            .task-state-in_progress {
-                background-color: #FFF8E1 !important; /* Amarillo claro */
-            }
-            .task-state-done {
-                background-color: #E8F5E9 !important; /* Verde claro */
-            }
-            .task-state-canceled {
-                background-color: #FFEBEE !important; /* Rojo claro */
-            }
-            .task-state-blocked {
-                background-color: #F3E5F5 !important; /* Morado claro */
-            }
-            /* Asegúrate que el color de texto sea legible */
-            .task-state-cell {
-                color: #000000 !important;
-            }
-        </style>
-    </xpath>
-</template>
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Elimina completamente la etiqueta <data> que envuelve el template -->
+    <template id="task_planner_assets" inherit_id="web.assets_backend">
+        <xpath expr="." position="inside">
+            <script type="text/javascript" src="/task_planner/static/src/js/tree_view.js"/>
+            <style type="text/css">
+                .o_subtree .o_data_cell:first-child {
+                    padding-left: 30px !important;
+                }
+            </style>
+        </xpath>
+    </template>
+</odoo>

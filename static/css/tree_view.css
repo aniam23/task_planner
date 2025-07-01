@@ -1,0 +1,13 @@
+.o_row_expanded .o_expand_button {
+    transform: rotate(90deg);
+    transition: transform 0.2s;
+}
+
+.o_tree_row_subtask {
+    display: none;
+    background-color: #f9f9f9;
+}
+
+.o_row_expanded + .o_tree_row_subtask {
+    display: table-row;
+}

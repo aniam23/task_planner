@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+        <!-- Vista Form -->
         <record id="activity_planner_details_view_form" model="ir.ui.view">
             <field name="name">task.board.details.form</field>
             <field name="model">task.board</field>
@@ -10,6 +11,7 @@
                         <group>
                             <field name="name" class="o_titles_subtask" readonly="1"/>
                             <group col="3">
+                                <field name="allowed_member_ids" invisible="1"/>
                                 <field name="person" widget="many2one_avatar_user" readonly="1"/>
                                 <field name="status" widget="selection" readonly="1"/>
                                 <field name="completion_date" widget="daterange"/>
@@ -41,26 +43,81 @@
                 </form>
             </field>
         </record>
-        <!-- Resto de tus vistas se mantienen igual -->
+        <!-- Vista del formulario de creación de campos dinámicos -->
+        <record id="view_task_board_dynamic_fields_form" model="ir.ui.view">
+            <field name="name">task.board.dynamic.fields.form</field>
+            <field name="model">task.board</field>
+            <field name="arch" type="xml">
+                <form string="Agregar Campo Dinámico">
+                    <sheet>
+                        <group>
+                            <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
+                            <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
+                            <field name="dynamic_field_type" string="Tipo de Campo" required="1"/>
+                            <!-- Campo para opciones de selección (solo visible cuando el tipo es selection) -->
+                            <field name="selection_options" string="Opciones (para tipo Selección)"
+                                   attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}"/>
+                        </group>
+                    </sheet>
+                    <footer>
+                        <button name="action_create_dynamic_field" string="Crear" type="object" class="oe_highlight"/>
+                        <button string="Cancelar" special="cancel" class="oe_link"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+        <!-- Vista Tree modificada para incluir campos dinámicos -->
         <record id="activity_planner_task_view_tree" model="ir.ui.view">
             <field name="name">task.board.tree</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
                 <tree editable="bottom" decoration-danger="status == 'stuck'" 
-                                      decoration-warning="status == 'new'"
-                                      decoration-info="status == 'in_progress'"
-                                      decoration-success="status == 'done'">
+                      decoration-warning="status == 'new'"
+                      decoration-info="status == 'in_progress'"
+                      decoration-success="status == 'done'">
+                    <!-- Campos fijos -->
                     <field name="name"/>
                     <field name="allowed_member_ids" invisible="1"/>
                     <field name="person" widget="many2one_avatar_user"/>
                     <field name="status" widget="selection"/>
                     <field name="completion_date" widget="daterange"/>
-                    <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
                     <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
+
+                    <!-- Botones -->
+                    <button name="action_open_dynamic_field_creator" 
+                            string="Agregar Campo" 
+                            type="object"
+                            class="oe_highlight"/>
+                    <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
                 </tree>
             </field>
         </record>
-
+        <!-- Vista Tree  -->
+        <record id="activity_planner_task_view_tree" model="ir.ui.view">
+            <field name="name">task.board.tree</field>
+            <field name="model">task.board</field>
+            <field name="arch" type="xml">
+                <tree editable="bottom" decoration-danger="status == 'stuck'" 
+                      decoration-warning="status == 'new'"
+                      decoration-info="status == 'in_progress'"
+                      decoration-success="status == 'done'">
+                    <!-- Campos fijos -->
+                    <field name="name"/>
+                    <field name="allowed_member_ids" invisible="1"/>
+                    <field name="person" widget="many2one_avatar_user"/>
+                    <field name="status" widget="selection"/>
+                    <field name="completion_date" widget="daterange"/>
+                    <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
+                    <!-- Botones -->
+                      <button name="action_open_dynamic_field_creator" 
+                        string="Agregar Campo" 
+                        type="object"
+                        class="oe_highlight"/>
+                    <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
+                </tree>
+            </field>
+        </record>
+        <!-- Vista Kanban -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
@@ -71,7 +128,6 @@
                         <t t-name="kanban-box">
                             <div class="oe_kanban_global_click">
                                 <div class="oe_kanban_content">
-                                    <!-- Columna 1: Nombre y progreso -->
                                     <div class="col-md-8">
                                         <strong><field name="name"/></strong>
                                         <div class="mt-2">
@@ -82,7 +138,6 @@
                                             </small>
                                         </div>
                                     </div>
-                                    <!-- Columna 2: Información adicional -->
                                     <div class="col-md-4 text-right">
                                         <field name="person" widget="many2one_avatar_user"/>
                                         <div>
@@ -100,6 +155,7 @@
             </field>
         </record>
 
+        <!-- Acciones -->
         <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
             <field name="name">Tasks Board</field>
             <field name="res_model">task.board</field>
@@ -109,6 +165,5 @@
             <field name="context">{'default_department_id': active_id}</field>
             <field name="target">current</field>
         </record>
-        
     </data>
 </odoo>
