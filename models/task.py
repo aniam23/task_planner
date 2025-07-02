@@ -129,15 +129,15 @@ class TaskBoard(models.Model):
     def _generate_valid_field_name(self, name):
         """
         Genera un nombre técnico válido para un campo de Odoo:
-        - minúsculas
-        - sin espacios
-        - sin caracteres especiales
         """
+        # Primero limpiamos el nombre
         name = name.lower()
-        name = re.sub(r'\s+', '_', name)       # Reemplaza espacios con guión bajo
-        name = re.sub(r'\W+', '', name)        # Elimina caracteres no alfanuméricos
-        if name and name[0].isdigit():
-            name = f"field_{name}"             # Evita que comience con número
+        name = re.sub(r'\s+', '_', name)   
+        name = re.sub(r'[^a-z0-9_]', '', name) 
+        if not name.startswith('x_'):
+            name = f"x_{name}"
+        if len(name) > 2 and name[2].isdigit():
+            name = f"x_field_{name[2:]}"
         return name
 
     def _update_views_completely(self, field_name):
@@ -316,7 +316,7 @@ class TaskBoard(models.Model):
             'model_id': model.id,
             'field_description': self.dynamic_field_label or field_name,
             'ttype': field_type,
-            'state': 'manual',  # campo creado dinámicamente
+            'state': 'manual',  
             'required': False,
             'readonly': False,
             'index': False,
