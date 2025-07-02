@@ -66,7 +66,6 @@
                 </form>
             </field>
         </record>
-        <!-- Vista Tree modificada para incluir campos dinámicos -->
         <record id="activity_planner_task_view_tree" model="ir.ui.view">
             <field name="name">task.board.tree</field>
             <field name="model">task.board</field>
@@ -82,7 +81,8 @@
                     <field name="status" widget="selection"/>
                     <field name="completion_date" widget="daterange"/>
                     <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
-
+            
+            
                     <!-- Botones -->
                     <button name="action_open_dynamic_field_creator" 
                             string="Agregar Campo" 
@@ -92,31 +92,7 @@
                 </tree>
             </field>
         </record>
-        <!-- Vista Tree  -->
-        <record id="activity_planner_task_view_tree" model="ir.ui.view">
-            <field name="name">task.board.tree</field>
-            <field name="model">task.board</field>
-            <field name="arch" type="xml">
-                <tree editable="bottom" decoration-danger="status == 'stuck'" 
-                      decoration-warning="status == 'new'"
-                      decoration-info="status == 'in_progress'"
-                      decoration-success="status == 'done'">
-                    <!-- Campos fijos -->
-                    <field name="name"/>
-                    <field name="allowed_member_ids" invisible="1"/>
-                    <field name="person" widget="many2one_avatar_user"/>
-                    <field name="status" widget="selection"/>
-                    <field name="completion_date" widget="daterange"/>
-                    <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
-                    <!-- Botones -->
-                      <button name="action_open_dynamic_field_creator" 
-                        string="Agregar Campo" 
-                        type="object"
-                        class="oe_highlight"/>
-                    <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
-                </tree>
-            </field>
-        </record>
+    
         <!-- Vista Kanban -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
