@@ -19,7 +19,12 @@ class TaskBoard(models.Model):
         ondelete='cascade',
         required=True
     )
-
+    dynamic_field_list = fields.Many2many(
+    'ir.model.fields',
+    string='Campos Dinámicos',
+    compute='_compute_dynamic_fields',
+    store=False
+    )
     sequence = fields.Integer(string='Sequence', default=10)
     drag = fields.Integer()
     files = fields.Many2many('ir.attachment', string="Files")
@@ -99,6 +104,65 @@ class TaskBoard(models.Model):
     selection_options = fields.Text(string='Opciones de Selección (clave:valor)')
     dynamic_fields_data = fields.Text(string='Campos Dinámicos')
 
+    dynamic_field_names = fields.Text(
+    string="Campos Dinámicos",
+    compute='_compute_dynamic_fields',
+    store=False
+    )
+
+    def _compute_dynamic_field_value(self, field_name):
+        """Método auxiliar para obtener valores de campos dinámicos"""
+        for record in self:
+            setattr(record, field_name, record[field_name])
+
+        # Añade esto al final de tu modelo TaskBoard
+        setattr(TaskBoard, 'x_dynamic_field_accessor', _compute_dynamic_field_value)
+    
+    def get_field_label(self, field_name):
+        """Obtiene la etiqueta de un campo dinámico por su nombre"""
+        field = self.env['ir.model.fields'].search([
+            ('model', '=', self._name),
+            ('name', '=', field_name)
+        ], limit=1)
+        return field.field_description if field else field_name
+        
+    def action_remove_dynamic_field(self, field_name):
+        """Elimina un campo dinámico por su nombre"""
+        self.ensure_one()
+
+        if not field_name:
+            raise ValidationError("Nombre de campo no proporcionado")
+
+        # Verificar permisos
+        if not self.env.user.has_group('base.group_system'):
+            raise ValidationError("Solo administradores pueden eliminar campos")
+
+        # Buscar el campo
+        field = self.env['ir.model.fields'].search([
+            ('model', '=', self._name),
+            ('name', '=', field_name)
+        ], limit=1)
+
+        if not field:
+            raise ValidationError("Campo no encontrado")
+
+        try:
+            # 1. Eliminar la columna de la base de datos
+            self._cr.execute(f"""
+                ALTER TABLE {self._table} 
+                DROP COLUMN IF EXISTS {field_name}
+            """)
+
+            # 2. Eliminar el registro del campo
+            field.unlink()
+
+            # 3. Limpiar caché
+            self.env.registry.clear_cache()
+
+            return {'type': 'ir.actions.client', 'tag': 'reload'}
+        except Exception as e:
+            raise ValidationError(f"Error al eliminar campo: {str(e)}")
+
     def action_create_dynamic_field(self):
         """Versión corregida que asegura que el campo aparezca en las vistas"""
         self.ensure_one()
@@ -126,6 +190,7 @@ class TaskBoard(models.Model):
         except Exception as e:
             _logger.error("Error completo: %s", traceback.format_exc())
             raise ValidationError(f"Error al crear campo: {str(e)}")
+
     def _generate_valid_field_name(self, name):
         """
         Genera un nombre técnico válido para un campo de Odoo:
