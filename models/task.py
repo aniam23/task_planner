@@ -111,18 +111,16 @@ class TaskBoard(models.Model):
     )
 
     #eliminar campos dinamicos 
+    
     def action_remove_dynamic_field(self):
         """Elimina un campo dinámico asegurándose de borrar referencias y la columna DB."""
         self.ensure_one()
-
         if not self.dynamic_field_name:
             raise ValidationError("Debe especificar el nombre del campo a eliminar")
-
-        # Generar nombre de campo válido (ejemplo con prefijo 'x_')
+        # Generar nombre de campo válido 
         field_name = self._generate_valid_field_name(self.dynamic_field_name)
-
         try:
-            # 0. Eliminar vistas que contengan el campo (con y sin prefijo 'x_')
+            # Eliminar vistas que contengan el campo (con y sin prefijo 'x_')
             field_names_to_search = [field_name, field_name.lstrip('x_')]
             for fname in field_names_to_search:
                 views = self.env['ir.ui.view'].search([('arch_db', 'ilike', fname)])
@@ -131,12 +129,12 @@ class TaskBoard(models.Model):
                         _logger.info(f"Eliminando vista {view.name} que contiene campo {fname}")
                         view.unlink()
 
-            # 1. Eliminar campo en ir.model.fields (manejo protegido)
+            # Eliminar campo en ir.model.fields (manejo protegido)
             field = self.env['ir.model.fields'].search([
                 ('model', '=', self._name),
                 ('name', '=', field_name)
-            ], limit=1)
-
+            ], limit=2)
+            
             if field:
                 try:
                     field.unlink()
@@ -144,25 +142,23 @@ class TaskBoard(models.Model):
                     _logger.warning(f"Eliminación normal falló para {field_name}: {e}")
                     # Método forzado si falla
                     self._force_remove_field(field_name)
-
-            # 2. Eliminar columna física en la tabla SQL (si existe)
+            # return {
+            #     'type': 'ir.actions.client',
+            #     'tag': 'reload',
+                
+            # }
+            #  Eliminar columna física en la tabla SQL (si existe)
             self._remove_column_from_table(field_name)
 
-            # 3. Verificar eliminación completa
+            # Verificar eliminación completa
             self._verify_field_removal(field_name)
 
-            # 4. Recargar definición del modelo para que Odoo no intente acceder al campo eliminado
-            self._reload_model_definition()
+            # # Recargar definición del modelo para que Odoo no intente acceder al campo eliminado
+            # self._reload_model_definition()
 
             return {
                 'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Éxito',
-                    'message': f'Campo {field_name} eliminado correctamente',
-                    'sticky': False,
-                    'next': {'type': 'ir.actions.act_window_close'},
-                },
+                'tag': 'reload',
             }
 
         except Exception as e:
@@ -274,14 +270,12 @@ class TaskBoard(models.Model):
                 view_type='tree',
                 field_name=field_name
             )
-            
             # 2. Actualizar vista form
             self._update_specific_view(
                 view_xml_id='task_planner.activity_planner_details_view_form',
                 view_type='form',
                 field_name=field_name
             )
-            
             # 3. Actualizar vista kanban si existe
             try:
                 self._update_specific_view(
@@ -291,10 +285,8 @@ class TaskBoard(models.Model):
                 )
             except:
                 _logger.warning("No se encontró vista kanban, omitiendo")
-
             # 4. Forzar actualización del cache de vistas
             self.env['ir.ui.view'].clear_caches()
-            
         except Exception as e:
             _logger.error("Error actualizando vistas: %s", str(e))
             raise
@@ -304,23 +296,19 @@ class TaskBoard(models.Model):
         try:
             # Obtener la vista base
             base_view = self.env.ref(view_xml_id)
-            
             # Crear nombre único para la vista heredada
             inherit_view_name = f"{self._name}.{view_type}.inherit.{field_name}"
-            
             # Buscar si ya existe una vista heredada
             inherited_view = self.env['ir.ui.view'].search([
                 ('name', '=', inherit_view_name),
                 ('model', '=', self._name)
             ], limit=1)
-            
             # Generar el archivo XML para la vista
             arch = self._generate_view_arch_with_field(
                 base_view=base_view,
                 view_type=view_type,
                 field_name=field_name
             )
-            
             if inherited_view:
                 # Actualizar vista existente
                 inherited_view.write({'arch': arch})
@@ -334,7 +322,6 @@ class TaskBoard(models.Model):
                     'arch': arch,
                     'active': True
                 })
-                
         except Exception as e:
             _logger.error("Error actualizando vista %s: %s", view_xml_id, str(e))
             raise
@@ -343,20 +330,17 @@ class TaskBoard(models.Model):
         """Genera el XML para la vista con el nuevo campo"""
         # Determinar la mejor posición para insertar el campo
         position_info = self._get_best_position_for_field(base_view, view_type)
-        
         # Configurar atributos del campo
         field_attrs = {
             'name': field_name,
             'string': self.dynamic_field_label,
             'optional': 'show'
         }
-        
         # Añadir widgets especiales según el tipo de campo
         if self.dynamic_field_type == 'selection':
             field_attrs['widget'] = 'selection'
         elif self.dynamic_field_type in ['date', 'datetime']:
             field_attrs['widget'] = self.dynamic_field_type
-        
         # Construir el XML completo
         return f"""
         <data>
@@ -370,7 +354,6 @@ class TaskBoard(models.Model):
         """Determina la mejor posición para insertar el campo en la vista"""
         try:
             doc = etree.fromstring(base_view.arch)
-            
             if view_type == 'form':
                 # Intentar insertar después del último campo
                 last_field = doc.xpath("(//field[not(ancestor::field)])[last()]")
@@ -379,7 +362,6 @@ class TaskBoard(models.Model):
                         'xpath': f"//field[@name='{last_field[0].get('name')}']",
                         'position': 'after'
                     }
-                
                 # Si no hay campos, insertar en el sheet principal
                 sheet = doc.xpath("//sheet")[0] if doc.xpath("//sheet") else None
                 if sheet:
@@ -387,7 +369,6 @@ class TaskBoard(models.Model):
                         'xpath': f"//sheet[@name='{sheet.get('name', '')}']",
                         'position': 'inside'
                     }
-            
             elif view_type == 'tree':
                 # Insertar después del último campo visible
                 last_field = doc.xpath("(//field[not(@invisible)])[last()]") or doc.xpath("(//field)[last()]")
@@ -396,13 +377,11 @@ class TaskBoard(models.Model):
                         'xpath': f"//field[@name='{last_field[0].get('name')}']",
                         'position': 'after'
                     }
-            
             # Posición por defecto si no se encuentra un buen lugar
             return {
                 'xpath': "/*",
                 'position': 'inside'
-            }
-            
+            } 
         except Exception as e:
             _logger.warning("Error analizando vista: %s", str(e))
             return {
@@ -413,10 +392,8 @@ class TaskBoard(models.Model):
     def _create_field_in_model(self, field_name):
         """Crea el campo dinámico en el modelo"""
         field_type = self.dynamic_field_type
-
         if not field_type:
             raise ValidationError("Debe seleccionar un tipo de campo.")
-
         # Validar opciones si es un campo de selección
         selection = False
         if field_type == 'selection':
@@ -428,14 +405,11 @@ class TaskBoard(models.Model):
                     raise ValidationError("Cada opción debe tener el formato clave:valor.")
                 key, val = line.split(':', 1)
                 selection.append((key.strip(), val.strip()))
-
             # Guardar en JSON para usarlo luego si se requiere
             self.dynamic_fields_data = json.dumps(selection)
-
         model = self.env['ir.model'].search([('model', '=', self._name)], limit=1)
         if not model:
             raise ValidationError(f"No se encontró el modelo '{self._name}'.")
-
         field_values = {
             'name': field_name,
             'model_id': model.id,
@@ -446,14 +420,10 @@ class TaskBoard(models.Model):
             'readonly': False,
             'index': False,
         }
-
         if selection:
             field_values['selection'] = json.dumps(selection)
-
         # Crear el campo en ir.model.fields
         self.env['ir.model.fields'].create(field_values)
-
-
             # Manejar campos de selección
         if self.dynamic_field_type == 'selection' and self.selection_options:
                 selection = []
@@ -462,21 +432,18 @@ class TaskBoard(models.Model):
                         key, val = map(str.strip, line.split(':', 1))
                         selection.append((key, val))
                 field_vals['selection'] = str(selection)
-
             # Crear el campo técnico
                 self.env['ir.model.fields'].sudo().create(field_vals)
-
             # Añadir la columna a la tabla
                 self._add_column_to_table(field_name)
-
             # Limpiar caché para que el campo esté disponible inmediatamente
                 self.env.registry.clear_cache()
 
-    def _reload_model_definition(self):
-        """Recarga la definición del modelo actual desde la base de datos."""
-        if isinstance(self.env[self._name], BaseModel):
-            self.env[self._name]._setup_fields()
-            self.env[self._name]._setup_complete()
+    # def _reload_model_definition(self):
+    #     """Recarga la definición del modelo actual desde la base de datos."""
+    #     if isinstance(self.env[self._name], BaseModel):
+    #         self.env[self._name]._setup_fields()
+    #         self.env[self._name]._setup_complete()
 
     def _add_column_to_table(self, field_name):
         """Añade la columna a la tabla en la base de datos"""
