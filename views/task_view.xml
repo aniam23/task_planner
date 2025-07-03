@@ -8,50 +8,41 @@
             <field name="arch" type="xml">
                 <form>
                     <sheet>
-                        <!-- Añade este campo OCULTO al inicio del sheet -->
-                        <field name="dynamic_field_names" invisible="1"/>
-
                         <group>
-                            <field name="name" class="o_titles_subtask"/>
+                            <field name="name" class="o_titles_subtask" readonly="1"/>
                             <group col="3">
                                 <field name="allowed_member_ids" invisible="1"/>
-                                <field name="person" widget="many2one_avatar_user"/>
-                                <field name="status" widget="selection"/>
+                                <field name="person" widget="many2one_avatar_user" readonly="1"/>
+                                <field name="status" widget="selection" readonly="1"/>
                                 <field name="completion_date" widget="daterange"/>
                                 <field name="files" widget="many2many_binary"/>
                             </group>    
                         </group>
-
-                        <!-- Sección de campos dinámicos (versión simplificada) -->
-                        <div >
-                            <h3>Campos Dinámicos</h3>
-                            <t >
-                                <div >
-                                    <div class="col-2">
-                                        <button type="object" 
-                                                name="action_remove_dynamic_field"
-                                                args="[field_name]"
-                                                class="btn btn-sm btn-danger"
-                                                icon="fa-times"
-                                                groups="base.group_system"/>
-                                    </div>
-                                </div>
-                            </t>
-                        </div>
                         <notebook>
                             <page string="Subtask">
                                 <field name="subtask_ids">
-                                    <tree>
-                                        <!-- ... mantén tu estructura actual de subtareas ... -->
+                                    <tree class="o_tree_view" decoration-danger="status == 'stuck'" 
+                                        decoration-warning="status == 'new'"
+                                        decoration-info="status == 'in_progress'"
+                                        decoration-success="status == 'done'">
+                                        <field name="drag" widget="handle"/>
+                                        <field name="name"/>
+                                        <field name="person" widget="many2one_avatar_user"/>
+                                        <field name="status" widget="selection"/>
+                                        <field name="completion_date" widget="daterange" class="oe_table_titles"/>
+                                        <button type="object" class="btn btn-primary" name="open_subtask_form" icon="fa-solid fa-bars"/>
                                     </tree>
                                 </field>
                             </page>
                         </notebook>
                     </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="message_ids" widget="mail_thread"/>
+                    </div>
                 </form>
             </field>
         </record>
-
         <!-- Vista del formulario de creación de campos dinámicos -->
         <record id="view_task_board_dynamic_fields_form" model="ir.ui.view">
             <field name="name">task.board.dynamic.fields.form</field>
@@ -63,6 +54,7 @@
                             <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
                             <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
                             <field name="dynamic_field_type" string="Tipo de Campo" required="1"/>
+                            <!-- Campo para opciones de selección (solo visible cuando el tipo es selection) -->
                             <field name="selection_options" string="Opciones (para tipo Selección)"
                                    attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}"/>
                         </group>
@@ -74,7 +66,6 @@
                 </form>
             </field>
         </record>
-
         <record id="activity_planner_task_view_tree" model="ir.ui.view">
             <field name="name">task.board.tree</field>
             <field name="model">task.board</field>
@@ -83,6 +74,7 @@
                       decoration-warning="status == 'new'"
                       decoration-info="status == 'in_progress'"
                       decoration-success="status == 'done'">
+                    <!-- Campos fijos -->
                     <field name="name"/>
                     <field name="allowed_member_ids" invisible="1"/>
                     <field name="person" widget="many2one_avatar_user"/>
@@ -90,11 +82,15 @@
                     <field name="completion_date" widget="daterange"/>
                     <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
             
+                    <!-- Botones -->
                     <button name="action_open_dynamic_field_creator" 
                             string="Agregar Campo" 
                             type="object"
-                            class="oe_highlight"
-                            groups="base.group_system"/>
+                            class="oe_highlight"/>
+                     <button name="action_remove_dynamic_field" 
+                            string="eliminar Campo" 
+                            type="object"
+                            class="oe_highlight"/>
                     <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
                 </tree>
             </field>

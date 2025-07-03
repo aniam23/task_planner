@@ -1,6 +1,7 @@
 from odoo import models, api, fields
 from odoo.exceptions import ValidationError
 from .boards import STATES
+from odoo.models import BaseModel
 import re
 import json
 import traceback
@@ -103,68 +104,127 @@ class TaskBoard(models.Model):
     dynamic_field_label = fields.Char(string='Etiqueta')
     selection_options = fields.Text(string='Opciones de Selección (clave:valor)')
     dynamic_fields_data = fields.Text(string='Campos Dinámicos')
-
     dynamic_field_names = fields.Text(
     string="Campos Dinámicos",
     compute='_compute_dynamic_fields',
     store=False
     )
 
-    def _compute_dynamic_field_value(self, field_name):
-        """Método auxiliar para obtener valores de campos dinámicos"""
-        for record in self:
-            setattr(record, field_name, record[field_name])
-
-        # Añade esto al final de tu modelo TaskBoard
-        setattr(TaskBoard, 'x_dynamic_field_accessor', _compute_dynamic_field_value)
-    
-    def get_field_label(self, field_name):
-        """Obtiene la etiqueta de un campo dinámico por su nombre"""
-        field = self.env['ir.model.fields'].search([
-            ('model', '=', self._name),
-            ('name', '=', field_name)
-        ], limit=1)
-        return field.field_description if field else field_name
-        
-    def action_remove_dynamic_field(self, field_name):
-        """Elimina un campo dinámico por su nombre"""
+    #eliminar campos dinamicos 
+    def action_remove_dynamic_field(self):
+        """Elimina un campo dinámico asegurándose de borrar referencias y la columna DB."""
         self.ensure_one()
 
-        if not field_name:
-            raise ValidationError("Nombre de campo no proporcionado")
+        if not self.dynamic_field_name:
+            raise ValidationError("Debe especificar el nombre del campo a eliminar")
 
-        # Verificar permisos
-        if not self.env.user.has_group('base.group_system'):
-            raise ValidationError("Solo administradores pueden eliminar campos")
-
-        # Buscar el campo
-        field = self.env['ir.model.fields'].search([
-            ('model', '=', self._name),
-            ('name', '=', field_name)
-        ], limit=1)
-
-        if not field:
-            raise ValidationError("Campo no encontrado")
+        # Generar nombre de campo válido (ejemplo con prefijo 'x_')
+        field_name = self._generate_valid_field_name(self.dynamic_field_name)
 
         try:
-            # 1. Eliminar la columna de la base de datos
-            self._cr.execute(f"""
-                ALTER TABLE {self._table} 
-                DROP COLUMN IF EXISTS {field_name}
-            """)
+            # 0. Eliminar vistas que contengan el campo (con y sin prefijo 'x_')
+            field_names_to_search = [field_name, field_name.lstrip('x_')]
+            for fname in field_names_to_search:
+                views = self.env['ir.ui.view'].search([('arch_db', 'ilike', fname)])
+                for view in views:
+                    if fname in (view.arch_db or ''):
+                        _logger.info(f"Eliminando vista {view.name} que contiene campo {fname}")
+                        view.unlink()
 
-            # 2. Eliminar el registro del campo
-            field.unlink()
+            # 1. Eliminar campo en ir.model.fields (manejo protegido)
+            field = self.env['ir.model.fields'].search([
+                ('model', '=', self._name),
+                ('name', '=', field_name)
+            ], limit=1)
 
-            # 3. Limpiar caché
-            self.env.registry.clear_cache()
+            if field:
+                try:
+                    field.unlink()
+                except Exception as e:
+                    _logger.warning(f"Eliminación normal falló para {field_name}: {e}")
+                    # Método forzado si falla
+                    self._force_remove_field(field_name)
 
-            return {'type': 'ir.actions.client', 'tag': 'reload'}
+            # 2. Eliminar columna física en la tabla SQL (si existe)
+            self._remove_column_from_table(field_name)
+
+            # 3. Verificar eliminación completa
+            self._verify_field_removal(field_name)
+
+            # 4. Recargar definición del modelo para que Odoo no intente acceder al campo eliminado
+            self._reload_model_definition()
+
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'Éxito',
+                    'message': f'Campo {field_name} eliminado correctamente',
+                    'sticky': False,
+                    'next': {'type': 'ir.actions.act_window_close'},
+                },
+            }
+
         except Exception as e:
-            raise ValidationError(f"Error al eliminar campo: {str(e)}")
+            _logger.error(f"Error al eliminar campo dinámico: {e}")
+            raise ValidationError(f"Error al eliminar campo: {e}")
 
+    def _force_remove_field(self, field_name):
+        """Eliminación forzada para campos protegidos"""
+        self.env.cr.execute("""
+            UPDATE ir_model_fields SET state = 'manual'
+            WHERE model = %s AND name = %s
+        """, [self._name, field_name])
+        self.env.cr.execute("""
+            DELETE FROM ir_model_fields
+            WHERE model = %s AND name = %s
+        """, [self._name, field_name])
+        self.env.cr.execute("""
+            DELETE FROM ir_default
+            WHERE field_name = %s AND model = %s
+        """, [field_name, self._name])
+        self.env.cr.commit()
+
+    def _remove_column_from_table(self, field_name):
+        """Eliminar columna física si existe"""
+        # Validar nombre de campo para DB (usamos función de Odoo)
+        if not self._is_valid_db_identifier(field_name):
+            raise ValidationError("Nombre de campo inválido para PostgreSQL")
+
+        self.env.cr.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = %s AND column_name = %s
+        """, [self._table, field_name])
+
+        if self.env.cr.fetchone():
+            self.env.cr.execute(f'ALTER TABLE "{self._table}" DROP COLUMN IF EXISTS "{field_name}"')
+
+    def _verify_field_removal(self, field_name):
+        """Verificar que el campo fue eliminado"""
+        errors = []
+        if self.env['ir.model.fields'].search([('model', '=', self._name), ('name', '=', field_name)], limit=1):
+            errors.append("El campo sigue existiendo en ir.model.fields")
+        if field_name in self.env[self._name]._fields:
+            errors.append("El campo sigue en la definición del modelo")
+        self.env.cr.execute("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = %s AND column_name = %s
+        """, [self._table, field_name])
+        if self.env.cr.fetchone():
+            errors.append("La columna sigue existiendo en la base de datos")
+
+        if errors:
+            raise ValidationError("El campo no se eliminó completamente:\n" + "\n".join(errors))
+
+    def _reload_model_definition(self):
+        """Recarga la definición del modelo para que no use el campo eliminado"""
+        # Usamos _setup_fields y _setup_complete para recargar
+        self.env[self._name]._setup_fields()
+        self.env[self._name]._setup_complete()
+        
+    #creacion de campos dinamicos
     def action_create_dynamic_field(self):
-        """Versión corregida que asegura que el campo aparezca en las vistas"""
+        """asegura que el campo aparezca en las vistas"""
         self.ensure_one()
         try:
             # Validaciones
@@ -412,6 +472,12 @@ class TaskBoard(models.Model):
             # Limpiar caché para que el campo esté disponible inmediatamente
                 self.env.registry.clear_cache()
 
+    def _reload_model_definition(self):
+        """Recarga la definición del modelo actual desde la base de datos."""
+        if isinstance(self.env[self._name], BaseModel):
+            self.env[self._name]._setup_fields()
+            self.env[self._name]._setup_complete()
+
     def _add_column_to_table(self, field_name):
         """Añade la columna a la tabla en la base de datos"""
         column_type = {
@@ -521,3 +587,8 @@ class TaskBoard(models.Model):
             'view_id': self.env.ref('task_planner.activity_planner_details_view_form').id,
             'target': 'current',
         }
+    
+    def _is_valid_db_identifier(self, name):
+        """Valida si el nombre es un identificador válido de columna en PostgreSQL"""
+        import re
+        return re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name) is not None
