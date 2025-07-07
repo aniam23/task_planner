@@ -31,7 +31,7 @@ class Boards(models.Model):
     
     def open_task_kanban(self):
         """
-        
+        abre la vista para ver las tareas creadas en el tablero
         """
         employee = self.env.user.employee_id
         management_dept = self.env['hr.department'].search([('name', '=', 'Management')], limit=1)
@@ -42,8 +42,8 @@ class Boards(models.Model):
             'type': 'ir.actions.act_window',
             'name': 'Tasks Board',
             'res_model': 'task.board',
-            'view_mode': 'tree',
-            'view_id': self.env.ref('task_planner.activity_planner_task_view_tree').id,
+            'view_mode': 'kanban',
+            'view_id': self.env.ref('task_planner.activity_planner_task_view_kanban').id,
             'target': 'current',
             'context': {
                 'default_department_id': self.id

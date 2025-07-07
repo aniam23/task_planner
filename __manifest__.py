@@ -26,16 +26,6 @@
     'views/menu.xml',                  
     ],
     
-    'assets': {
-    'web.assets_backend': [
-        'task_planner/static/src/js/tree_view.js',
-    ],
-    },
-
-    'qweb': [
-        'task_planner/static/src/xml/assets.xml',
-    ],
-
     'installable': True,
     'application': True,
     'license': 'GPL-3',
