@@ -23,7 +23,7 @@
     'views/boards_view.xml',         
     'views/task_view.xml',
     'views/sub_task_view.xml',
-    'views/menu.xml',                  
+    'views/menu.xml',
     ],
     
     'installable': True,

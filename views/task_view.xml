@@ -2,147 +2,186 @@
 <odoo>
     <data>
         <!-- Vista Form -->
-        <record id="activity_planner_details_view_form" model="ir.ui.view">
+        <record id="activity_planner_details_view_form"
+                model="ir.ui.view">
             <field name="name">task.board.details.form</field>
             <field name="model">task.board</field>
-            <field name="arch" type="xml">
+            <field name="arch"
+                   type="xml">
                 <form>
                     <sheet>
                         <group>
-                            <field name="name" class="o_titles_subtask" readonly="1"/>
-                            <group col="3">
-                                <field name="allowed_member_ids" invisible="1"/>
-                                <field name="person" widget="many2one_avatar_user" readonly="1"/>
-                                <field name="status" widget="selection" readonly="1"/>
-                                <field name="completion_date" widget="daterange"/>
-                                <field name="files" widget="many2many_binary"/>
-                            </group>    
+                            <field name="name"/>
+                            <group >
+                                <field name="allowed_member_ids"
+                                       invisible="1" />
+                                <field name="person"
+                                       widget="many2one_avatar_user" />
+                                <field name="state"
+                                       widget="selection"
+                                       readonly="1" />
+                                <field name="completion_date"
+                                       widget="daterange" />
+                                <field name="files"
+                                       widget="many2many_binary" />
+                            </group>
                         </group>
                         <notebook>
                             <page string="Subtask">
                                 <field name="subtask_ids">
-                                    <tree class="o_tree_view" decoration-danger="status == 'stuck'" 
-                                        decoration-warning="status == 'new'"
-                                        decoration-info="status == 'in_progress'"
-                                        decoration-success="status == 'done'">
-                                        <field name="drag" widget="handle"/>
-                                        <field name="name"/>
-                                        <field name="person" widget="many2one_avatar_user"/>
-                                        <field name="status" widget="selection"/>
-                                        <field name="completion_date" widget="daterange" class="oe_table_titles"/>
-                                        <button type="object" class="btn btn-primary" name="open_subtask_form" icon="fa-solid fa-bars"/>
+                                    <tree class="o_tree_view"
+                                          decoration-danger="state == 'stuck'"
+                                          decoration-warning="state == 'new'"
+                                          decoration-info="state == 'in_progress'"
+                                          decoration-success="state == 'done'">
+                                        <field name="drag"
+                                               widget="handle" />
+                                        <field name="name" />
+                                        <field name="person"
+                                               widget="many2one_avatar_user" />
+                                        <field name="state"
+                                               widget="selection" />
+                                        <field name="completion_date"
+                                               widget="daterange"
+                                               class="oe_table_titles" />
+                                        <button type="object"
+                                                class="btn btn-primary"
+                                                name="open_subtask_form"
+                                                icon="fa-solid fa-bars" />
                                     </tree>
                                 </field>
                             </page>
                         </notebook>
                     </sheet>
                     <div class="oe_chatter">
-                        <field name="message_follower_ids" widget="mail_followers"/>
-                        <field name="message_ids" widget="mail_thread"/>
+                        <field name="message_follower_ids"
+                               widget="mail_followers" />
+                        <field name="message_ids"
+                               widget="mail_thread" />
                     </div>
                 </form>
             </field>
         </record>
         <!-- Vista del formulario de creación de campos dinámicos -->
-        <record id="view_task_board_dynamic_fields_form" model="ir.ui.view">
+        <record id="view_task_board_dynamic_fields_form"
+                model="ir.ui.view">
             <field name="name">task.board.dynamic.fields.form</field>
             <field name="model">task.board</field>
-            <field name="arch" type="xml">
+            <field name="arch"
+                   type="xml">
                 <form string="Agregar Campo Dinámico">
                     <sheet>
                         <group>
-                            <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
-                            <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
-                            <field name="dynamic_field_type" string="Tipo de Campo" required="1"/>
-                            <!-- Campo para opciones de selección (solo visible cuando el tipo es selection) -->
-                            <field name="selection_options" string="Opciones (para tipo Selección)"
-                                   attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}"/>
+                            <field name="dynamic_field_name"
+                                   string="Nombre Técnico"
+                                   required="1" />
+                            <field name="dynamic_field_label"
+                                   string="Etiqueta Visible"
+                                   required="1" />
+                            <field name="dynamic_field_type"
+                                   string="Tipo de Campo"
+                                   required="1" />
+                            <field name="selection_options"
+                                   string="Opciones (para tipo Selección)"
+                                   attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}" />
                         </group>
                     </sheet>
                     <footer>
-                        <button name="action_create_dynamic_field" string="Crear" type="object" class="oe_highlight"/>
-                        <button string="Cancelar" special="cancel" class="oe_link"/>
+                        <button name="action_create_dynamic_field"
+                                string="Crear"
+                                type="object"
+                                class="oe_highlight" />
+                        <button string="Cancelar"
+                                special="cancel"
+                                class="oe_link" />
                     </footer>
                 </form>
             </field>
         </record>
-        <record id="activity_planner_task_view_tree" model="ir.ui.view">
-            <field name="name">task.board.tree</field>
-            <field name="model">task.board</field>
+
+        <record id="view_subtask_tree" model="ir.ui.view">
+            <field name="name">subtask.board.tree</field>
+            <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree editable="bottom" decoration-danger="status == 'stuck'" 
-                      decoration-warning="status == 'new'"
-                      decoration-info="status == 'in_progress'"
-                      decoration-success="status == 'done'">
-                    <!-- Campos fijos -->
-                    <field name="name"/>
-                    <field name="allowed_member_ids" invisible="1"/>
-                    <field name="person" widget="many2one_avatar_user"/>
-                    <field name="status" widget="selection"/>
-                    <field name="completion_date" widget="daterange"/>
-                    <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
-            
-            
-                    <!-- Botones -->
-                    <button name="action_open_dynamic_field_creator" 
-                            string="Agregar Campo" 
-                            type="object"
-                            class="oe_highlight"/>
-                    <button name="action_remove_dynamic_field" 
-                            string="Eliminar Campo" 
-                            type="object"
-                            class="oe_highlight"/>
-                    <button type="object" name="open_details_form" icon="fa-ellipsis-v"/>
+                <tree string="Subtareas" 
+                      decoration-danger="state == 'stuck'"
+                      decoration-warning="state == 'new'"
+                      decoration-info="state == 'in_progress'"
+                      decoration-success="state == 'done'">
+                    <field name="sequence" widget="handle"/>
+                    <field name="name" string="Nombre"/>
+                    <field name="person" widget="many2one_avatar_user" string="Asignado"/>
+                    <field name="state" widget="selection" string="Estado"/>
+                    <field name="completion_date" widget="daterange" string="Fecha Límite"/>
+                    <button name="open_subtask_form" type="object" class="btn btn-link" icon="fa-eye" string=""/>
                 </tree>
             </field>
         </record>
-    
         <!-- Vista Kanban -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
                 <kanban default_group_by="person">
-                    <field name="color"/>
+                    <field name="name"/>
+                    <field name="person"/>
+                    <field name="state"/>
+                    <field name="progress"/>
+                    <field name="completed_subtasks"/>
+                    <field name="total_subtasks"/>
+                    <field name="completion_date"/>
+
                     <templates>
                         <t t-name="kanban-box">
-                            <div class="oe_kanban_global_click">
-                                <div class="oe_kanban_content">
-                                    <div class="col-md-8">
-                                        <strong><field name="name"/></strong>
-                                        <div class="mt-2">
-                                            <field name="progress" widget="progressbar" 
-                                                   options="{'max_value': 100, 'height': '10px'}"/>
-                                            <small class="text-muted">
-                                                <field name="completed_subtasks"/>/<field name="total_subtasks"/> subtareas
-                                            </small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4 text-right">
-                                        <field name="person" widget="many2one_avatar_user"/>
-                                        <div>
-                                            <field name="status" widget="badge"/>
-                                        </div>
-                                        <div>
-                                            <field name="completion_date" widget="daterange"/>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div class="o_kanban_record">
+                                <strong>
+                                    <field name="name" />
+                                </strong>
+                                <table class="table table-sm table-bordered mt-2">
+                                    <thead>
+                                        <tr>
+                                            <th>Responsable</th>
+                                            <th>Estado</th>
+                                            <th>Progreso</th>
+                                            <th>Fecha</th>
+                                            <th>Subtareas</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><field name="person" widget="many2one_avatar_user"/></td>
+                                            <td><field name="state" widget="badge"/></td>
+                                            <td>
+                                                <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
+                                                <small class="text-muted">
+                                                    <field name="completed_subtasks"/>/<field name="total_subtasks"/>
+                                                </small>
+                                            </td>
+                                            <td><field name="completion_date" widget="daterange"/></td>
+                                            <td>
+                                                <button type="object" 
+                                                        class="btn btn-primary btn-sm" 
+                                                        name="action_view_subtasks" 
+                                                        string="Ver Subtareas"/>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </t>
                     </templates>
                 </kanban>
             </field>
         </record>
-
         <!-- Acciones -->
-        <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
+        <record id="task_planner.activity_tasks_action"
+                model="ir.actions.act_window">
             <field name="name">Tasks Board</field>
             <field name="res_model">task.board</field>
-            <field name="view_mode">kanban,tree,form</field>
-            <field name="view_id" ref="activity_planner_task_view_kanban"/>
+            <field name="view_mode">kanban,form</field>
+            <field name="view_id"
+                   ref="activity_planner_task_view_kanban" />
             <field name="domain">[('department_id', '=', active_id)]</field>
-            <field name="context">{'default_department_id': active_id}</field>
             <field name="target">current</field>
         </record>
     </data>

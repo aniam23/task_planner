@@ -9,6 +9,7 @@ from xml.etree import ElementTree as ET
 import logging
 from lxml import etree
 _logger = logging.getLogger(__name__)
+
 class TaskBoard(models.Model):
     _name = 'task.board'
     _description = 'Activity Planner Task'
@@ -37,15 +38,28 @@ class TaskBoard(models.Model):
         required=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
+    STATES = [
+    ('new', 'New'),
+    ('in_progress', 'In Progress'),
+    ('done', 'Done'),
+    ('stuck', 'Stuck'),
+    ('view_subtasks', 'View Subtasks')  
+    ]
     color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
-    status = fields.Selection(STATES, default="new", string="State")
+    state = fields.Selection(STATES, default="new", string="State")
     subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
+    task_ids = fields.One2many('task.board', 'department_id', invisible=1, string="Tasks")
+    subtasks_count= fields.Integer(
+        string="Subtask Count",
+        compute='_compute_subtask_count',
+        store=True,
+        default=0  # Añadir valor por defecto
+    )
     allowed_member_ids = fields.Many2many(
         'hr.employee',
         compute='_compute_allowed_members',
         string='Allowed Members'
     )
-    color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
     completed_subtasks = fields.Integer(
         string="Completed Subtasks",
         compute='_compute_progress',
@@ -71,20 +85,6 @@ class TaskBoard(models.Model):
     show_subtasks = fields.Boolean(string="Show Subtasks", default=True)
     parent_id = fields.Many2one('task.board', 'Parent Task', index=True, ondelete='cascade')
     child_ids = fields.One2many('task.board', 'parent_id', 'Sub-tasks')
-     # Campos principales existentes (se mantienen igual)
-    completion_date = fields.Datetime(string="Timeline")
-    department_id = fields.Many2one('boards.planner', string="Department", ondelete='cascade', required=True)
-    sequence = fields.Integer(string='Sequence', default=10)
-    drag = fields.Integer()
-    files = fields.Many2many('ir.attachment', string="Files")
-    name = fields.Char(string="Task", required=True)
-    person = fields.Many2one('hr.employee', string='Assigned To', tracking=True, required=True, domain="[('id', 'in', allowed_member_ids)]")
-    status = fields.Selection(STATES, default="new", string="State")
-    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
-    show_subtasks = fields.Boolean(string="Show Subtasks", default=True)
-    parent_id = fields.Many2one('task.board', 'Parent Task', index=True, ondelete='cascade')
-    child_ids = fields.One2many('task.board', 'parent_id', 'Sub-tasks')
-    # Añade esto junto con los otros campos dinámicos
     selection_options = fields.Text(
     string="Opciones de Selección",
     help="Ingrese opciones en formato clave:valor, una por línea. Ejemplo:\nopcion1:Opción 1\nopcion2:Opción 2"
@@ -102,7 +102,6 @@ class TaskBoard(models.Model):
     
     dynamic_field_name = fields.Char(string='Nombre Técnico')
     dynamic_field_label = fields.Char(string='Etiqueta')
-    selection_options = fields.Text(string='Opciones de Selección (clave:valor)')
     dynamic_fields_data = fields.Text(string='Campos Dinámicos')
     dynamic_field_names = fields.Text(
     string="Campos Dinámicos",
@@ -110,8 +109,49 @@ class TaskBoard(models.Model):
     store=False
     )
 
-    #eliminar campos dinamicos 
+    def action_view_subtasks(self):
+        """
+        Acción para ver subtareas: cambia el estado a 'view_subtasks',
+        y abre una vista tree con las subtareas de la tarea actual usando el modelo subtask.board
+        """
+        self.ensure_one()
+        self.write({'state': 'view_subtasks'})
     
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Subtareas de {self.name}',
+            'res_model': 'subtask.board',  # Modelo correcto para subtareas
+            'view_mode': 'tree,form',  # Solo tree y form
+            'views': [
+                (self.env.ref('task_planner.view_subtask_tree').id, 'tree'),  # Vista tree específica
+                (False, 'form')  # Vista form por defecto
+            ],
+            'domain': [('task_id', '=', self.id)],  # Filtra por task_id en lugar de parent_id
+            'context': {
+                'default_task_id': self.id,  # Asigna automáticamente task_id al crear
+                'default_department_id': self.department_id.id,
+                'default_allowed_member_ids': self.allowed_member_ids.ids,
+                'form_view_ref': 'task_planner.view_subtask_form'  # Fuerza vista form específica
+            },
+            'target': 'current',
+        }
+        
+    def action_close_subtasks(self):
+        """
+        Acción para cerrar subtareas. Cambia el estado a 'draft' y recarga la vista.
+        """
+        self.write({'state': 'draft'})  # O el estado normal de tus tareas
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }
+
+    def toggle_subtasks(self):
+        """Alterna entre mostrar y ocultar subtareas cambiando el estado"""
+        for task in self:
+            task.show_subtasks = not task.show_subtasks  # Cambiado para usar show_subtasks en lugar de state
+        return True
+    #eliminar campos dinamicos 
     def action_remove_dynamic_field(self):
         """Elimina un campo dinámico asegurándose de borrar referencias y la columna DB."""
         self.ensure_one()
@@ -260,16 +300,15 @@ class TaskBoard(models.Model):
         if len(name) > 2 and name[2].isdigit():
             name = f"x_field_{name[2:]}"
         return name
-
     def _update_views_completely(self, field_name):
         """Método mejorado para actualizar todas las vistas necesarias"""
         try:
             # 1. Actualizar vista tree
-            self._update_specific_view(
-                view_xml_id='task_planner.activity_planner_task_view_tree',
-                view_type='tree',
-                field_name=field_name
-            )
+            # self._update_specific_view(
+            #     view_xml_id='task_planner.activity_planner_task_view_kanban',
+            #     view_type='kanban',
+            #     field_name=field_name
+            # )
             # 2. Actualizar vista form
             self._update_specific_view(
                 view_xml_id='task_planner.activity_planner_details_view_form',
@@ -496,25 +535,27 @@ class TaskBoard(models.Model):
         'target': 'new',
     }
     
-    @api.depends('subtask_ids', 'subtask_ids.status')
+    @api.depends('subtask_ids')
     def _compute_progress(self):
         for task in self:
-            completed = task.subtask_ids.filtered(lambda x: x.status == 'done')
+            completed = task.subtask_ids.filtered(lambda x: x.state == 'done')
             task.completed_subtasks = len(completed)
             task.total_subtasks = len(task.subtask_ids)
             task.progress = (task.completed_subtasks / task.total_subtasks) * 100 if task.total_subtasks > 0 else 0
             
-    @api.depends('status')
+    @api.depends('state')
     def _compute_color_from_state(self):
         for task in self:
-            if task.status == 'new':
+            if task.state == 'new':
                 task.color = 2  # Amarillo
-            elif task.status == 'in_progress':
+            elif task.state == 'in_progress':
                 task.color = 5  # Naranja
-            elif task.status == 'done':
+            elif task.state == 'done':
                 task.color = 10  # Verde
-            elif task.status == 'stuck':
+            elif task.state == 'stuck':
                 task.color = 1  # Rojo
+            elif task.state == 'view_subtasks':
+                task.color = 4   
             else:
                 task.color = 0  # Por defecto
 
