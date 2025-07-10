@@ -111,31 +111,12 @@ class TaskBoard(models.Model):
 
     def action_view_subtasks(self):
         """
-        Acción para ver subtareas: cambia el estado a 'view_subtasks',
-        y abre una vista tree con las subtareas de la tarea actual usando el modelo subtask.board
+        Acción para cambiar el estado a 'view_subtasks' sin abrir ninguna vista adicional.
         """
         self.ensure_one()
         self.write({'state': 'view_subtasks'})
-    
-        return {
-            'type': 'ir.actions.act_window',
-            'name': f'Subtareas de {self.name}',
-            'res_model': 'subtask.board',  # Modelo correcto para subtareas
-            'view_mode': 'tree,form',  # Solo tree y form
-            'views': [
-                (self.env.ref('task_planner.view_subtask_tree').id, 'tree'),  # Vista tree específica
-                (False, 'form')  # Vista form por defecto
-            ],
-            'domain': [('task_id', '=', self.id)],  # Filtra por task_id en lugar de parent_id
-            'context': {
-                'default_task_id': self.id,  # Asigna automáticamente task_id al crear
-                'default_department_id': self.department_id.id,
-                'default_allowed_member_ids': self.allowed_member_ids.ids,
-                'form_view_ref': 'task_planner.view_subtask_form'  # Fuerza vista form específica
-            },
-            'target': 'current',
-        }
-        
+        return True  # O puedes omitir el return completamente
+
     def action_close_subtasks(self):
         """
         Acción para cerrar subtareas. Cambia el estado a 'draft' y recarga la vista.
