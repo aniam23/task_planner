@@ -11,16 +11,17 @@
                 <form>
                     <sheet>
                         <group>
-                            <field name="name"/>
+                          
                             <group >
+                                <field name="name"/>
                                 <field name="allowed_member_ids"
                                        invisible="1" />
                                 <field name="person"
-                                       widget="many2one_avatar_user" />
+                                       widget="many2one_avatar_user"/>
                                 <field name="state"
-                                       widget="selection"/>
-                                <field name="completion_date"
-                                       widget="daterange" />
+                                       widget="selection"
+                                       readonly="1" />
+                                <field name="completion_date" />
                                 <field name="files"
                                        widget="many2many_binary" />
                             </group>
@@ -62,39 +63,66 @@
             </field>
         </record>
         <!-- Vista del formulario de creación de campos dinámicos -->
-        <record id="view_task_board_dynamic_fields_form"
-                model="ir.ui.view">
+        <record id="view_task_board_dynamic_fields_form" model="ir.ui.view">
             <field name="name">task.board.dynamic.fields.form</field>
             <field name="model">task.board</field>
-            <field name="arch"
-                   type="xml">
+            <field name="arch" type="xml">
                 <form string="Agregar Campo Dinámico">
                     <sheet>
                         <group>
-                            <field name="dynamic_field_name"
-                                   string="Nombre Técnico"
-                                   required="1" />
-                            <field name="dynamic_field_label"
-                                   string="Etiqueta Visible"
-                                   required="1" />
-                            <field name="dynamic_field_type"
-                                   string="Tipo de Campo"
-                                   required="1" />
-                            <field name="selection_options"
-                                   string="Opciones (para tipo Selección)"
-                                   attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}" />
+                            <field name="dynamic_field_name" 
+                                   string="Nombre Técnico" 
+                                   required="1"
+                                   help="Nombre interno del campo (ej: x_prioridad)"/>
+
+                            <field name="dynamic_field_label" 
+                                   string="Etiqueta Visible" 
+                                   required="1"
+                                   help="Texto que verán los usuarios"/>
+
+                            <field name="dynamic_field_type" 
+                                   string="Tipo de Campo" 
+                                   required="1"
+                                   widget="radio"
+                                   options="{'horizontal': true}"/>
+
+                            <field name="selection_options" 
+                                   string="Opciones (Formato clave:valor)"
+                                   attrs="{'required': [('dynamic_field_type','=','selection')], 
+                                          'invisible': [('dynamic_field_type','!=','selection')]}"
+                                   help="Una opción por línea. Ejemplo:\nalto:Alta Prioridad\nmedio:Prioridad Media\nbajo:Prioridad Baja"/>
                         </group>
                     </sheet>
                     <footer>
-                        <button name="action_create_dynamic_field"
-                                string="Crear"
-                                type="object"
-                                class="oe_highlight" />
-                        <button string="Cancelar"
-                                special="cancel"
-                                class="oe_link" />
+                        <button name="action_create_dynamic_field" 
+                                string="Crear Campo" 
+                                type="object" 
+                                class="oe_highlight"
+                                attrs="{'invisible': [('dynamic_field_name','=',False)]}"/>
+                        <button string="Cancelar" 
+                                special="cancel" 
+                                class="oe_link"/>
                     </footer>
                 </form>
+            </field>
+        </record>
+
+        <record id="view_subtask_tree" model="ir.ui.view">
+            <field name="name">subtask.board.tree</field>
+            <field name="model">subtask.board</field>
+            <field name="arch" type="xml">
+                <tree string="Subtareas" 
+                      decoration-danger="state == 'stuck'"
+                      decoration-warning="state == 'new'"
+                      decoration-info="state == 'in_progress'"
+                      decoration-success="state == 'done'">
+                    <field name="sequence" widget="handle"/>
+                    <field name="name" string="Nombre"/>
+                    <field name="person" widget="many2one_avatar_user" string="Asignado"/>
+                    <field name="state" widget="selection" string="Estado"/>
+                    <field name="completion_date" widget="daterange" string="Fecha Límite"/>
+                    <button name="open_subtask_form" type="object" class="btn btn-link" icon="fa-eye" string=""/>
+                </tree>
             </field>
         </record>
         <!-- Vista Kanban -->
@@ -102,7 +130,7 @@
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
-                <kanban default_group_by="person" class="o_fullscreen_kanban">
+                <kanban default_group_by="person" class="o_kanban_full_width">
                     <field name="name"/>
                     <field name="person"/>
                     <field name="state"/>
@@ -111,99 +139,90 @@
                     <field name="total_subtasks"/>
                     <field name="completion_date"/>
                     <field name="subtask_ids"/>
-                    <field name="show_subtasks" invisible="1"/>
+                    <field name="show_subtasks"/>
+                    <field name="dynamic_field_ids"/>
                     <templates>
-                        <t t-name="kanban-box">
-                            <div class="o_kanban_record">
-                                <strong>
-                                    <field name="name"/>
-                                </strong>
-                                <table class="table table-sm table-bordered mt-2">
-                                    <thead>
-                                        <tr>
-                                            <th>Responsable</th>
-                                            <th>Estado</th>
-                                            <th>Progreso</th>
-                                            <th>Fecha</th>
-                                            <th>Subtareas</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td><field name="person" widget="many2one_avatar_user"/></td>
-                                            <td><field name="state" widget="badge"/></td>
-                                            <td>
-                                                <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
-                                                <small class="text-muted">
-                                                    <field name="completed_subtasks"/>/<field name="total_subtasks"/>
-                                                </small>
-                                            </td>
-                                            <td><field name="completion_date" widget="daterange"/></td>
-                                            <td>
-                                                <button type="object" 
-                                                        class="btn btn-primary btn-sm" 
-                                                        name="action_view_subtasks" 
-                                                        string="Ver Subtareas"/>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                                <!-- Tabla de subtareas condicional -->
-                                <t t-if="record.state.raw_value == 'view_subtasks'">
-                                    <div class="mt-3">
-                                        <h6>Subtareas:</h6>
-                                        <t t-set="subtasks" t-value="record.subtask_ids.raw_value ? record.subtask_ids.raw_value : []"/>
-                                        <t t-if="subtasks.length">
-                                            <table class="table table-sm table-bordered">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Nombre</th>
-                                                        <th>Responsable</th>
-                                                        <th>Estado</th>
-                                                        <th>Progreso</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <t t-foreach="subtasks" t-as="subtask">
-                                                        <tr>
-                                                            <td><t t-esc="subtask.name"/></td>
-                                                            <td>
-                                                                <t t-if="subtask.person">
-                                                                    <t t-esc="subtask.person"/> <!-- Nombre del responsable -->
-                                                                </t>
-                                                                <t t-else="">
-                                                                    Sin asignar
-                                                                </t>
-                                                            </td>
-                                                            <td>
-                                                                <span t-attf-class="badge badge-{{subtask.state === 'done' ? 'success' : 'warning'}}">
-                                                                    <t t-esc="subtask.state"/>
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <div class="progress" style="height: 10px;">
-                                                                    <div class="progress-bar" role="progressbar" 
-                                                                         t-att-style="'width: ' + (subtask.progress || 0) + '%;'" 
-                                                                         t-att-aria-valuenow="subtask.progress || 0" 
-                                                                         aria-valuemin="0" 
-                                                                         aria-valuemax="100">
-                                                                    </div>
-                                                                </div>
-                                                                <small class="text-muted">
-                                                                    <t t-esc="subtask.completed_subtasks || 0"/>/<t t-esc="subtask.total_subtasks || 0"/>
-                                                                </small>
-                                                            </td>
-                                                        </tr>
-                                                    </t>
-                                                </tbody>
-                                            </table>
-                                        </t>
-                                        <t t-else="">
-                                            <div class="alert alert-info mt-2">No hay subtareas para mostrar</div>
-                                        </t>
-                                    </div>
-                                </t>
+                        <t t-name="kanban-box" class="o_kanban_full_width">
+                            <div class="o_kanban_record oe_kanban_global_click" style="width: 100%; background: transparent; box-shadow: none;">
+                                <div class="kanban-table-container">
+                                    <strong style="margin-bottom: 8px; display: block;">
+                                        <field name="name" />
+                                    </strong>
+                                    <table class="table table-sm mt-2" style="width: 100%; margin: 0 auto; border: 1px solid #dee2e6; background: transparent;">
+                                        <thead>
+                                            <tr> 
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Responsable</th>
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Estado</th>
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Progreso</th>
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Fecha</th>
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Subtareas</th>
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Campos Dinamicos</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td style="border: 1px solid #dee2e6;"><field name="person" widget="many2one_avatar_user"/></td>
+                                                <td style="border: 1px solid #dee2e6;"><field name="state" widget="badge"/></td>
+                                                <td style="border: 1px solid #dee2e6;">
+                                                    <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
+                                                    <small class="text-muted">
+                                                        <field name="completed_subtasks"/>/<field name="total_subtasks"/>
+                                                    </small>
+                                                </td>
+                                                <td style="border: 1px solid #dee2e6;"><field name="completion_date" widget="daterange"/></td>
+                                                <td style="border: 1px solid #dee2e6;">
+                                                    <button type="object" 
+                                                            class="btn btn-primary btn-sm" 
+                                                            name="action_view_subtasks" 
+                                                            string="Ver Subtareas"/>
+                                                </td>
+                                                <td style="border: 1px solid #dee2e6;">
+                                                    <button name="action_open_dynamic_field_creator" 
+                                                        string="Agregar Campo" 
+                                                        type="object"
+                                                        class="oe_highlight"/>
+
+                                                    <button name="action_remove_dynamic_field" 
+                                                        string="Eliminar Campo" 
+                                                        type="object"
+                                                        class="oe_highlight"/>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
+                            <style>
+                                .o_kanban_full_width {
+                                    width: 700% !important;
+                                    padding: 0 15px !important;
+                                    background: transparent !important;
+                                }
+                                .o_kanban_full_width .o_kanban_record {
+                                    width: 700% !important;
+                                    margin: 8px 0 !important;
+                                    max-width: none;
+                                    padding: 10px;
+                                    background: transparent !important;
+                                    border: none !important;
+                                }
+                                .kanban-table-container {
+                                    width: 100%;
+                                    padding: 0 10px;
+                                }
+                                .o_kanban_full_width .table {
+                                    width: 100% !important;
+                                    margin: 0 auto !important;
+                                    background-color: transparent !important;
+                                }
+                                .o_kanban_group {
+                                    width: 100% !important;
+                                    background: transparent !important;
+                                }
+                                .o_kanban_record:after {
+                                    display: none !important;
+                                }
+                            </style>
                         </t>
                     </templates>
                 </kanban>
