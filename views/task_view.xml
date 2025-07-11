@@ -125,12 +125,12 @@
                 </tree>
             </field>
         </record>
-        <!-- Vista Kanban -->
+         <!-- Vista Kanban -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
-                <kanban default_group_by="person" class="o_kanban_full_width">
+                <kanban default_group_by="name" class="o_kanban_full_width">
                     <field name="name"/>
                     <field name="person"/>
                     <field name="state"/>
@@ -194,12 +194,12 @@
                             </div>
                             <style>
                                 .o_kanban_full_width {
-                                    width: 700% !important;
+                                    width: 500% !important;
                                     padding: 0 15px !important;
                                     background: transparent !important;
                                 }
                                 .o_kanban_full_width .o_kanban_record {
-                                    width: 700% !important;
+                                    width: 500% !important;
                                     margin: 8px 0 !important;
                                     max-width: none;
                                     padding: 10px;

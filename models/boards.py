@@ -31,13 +31,15 @@ class Boards(models.Model):
     
     def open_task_kanban(self):
         """
-        abre la vista para ver las tareas creadas en el tablero
+        Abre la vista para ver las tareas creadas en el tablero actual
         """
+        self.ensure_one()  # Asegura que solo se está llamando a un tablero
         employee = self.env.user.employee_id
         management_dept = self.env['hr.department'].search([('name', '=', 'Management')], limit=1)
     
         if not employee or (employee not in self.member_ids and employee.department_id != management_dept):
-            raise UserError("You do not have access to this department.")
+            raise UserError("You do not have acceso a este departamento.")
+    
         return {
             'type': 'ir.actions.act_window',
             'name': 'Tasks Board',
@@ -45,10 +47,12 @@ class Boards(models.Model):
             'view_mode': 'kanban',
             'view_id': self.env.ref('task_planner.activity_planner_task_view_kanban').id,
             'target': 'current',
+            'domain': [('id', '=', self.id)],  # 👈 Esta línea filtra solo el tablero actual
             'context': {
                 'default_department_id': self.id
             },
         }
+
     
     def open_board_form(self):
         return {
