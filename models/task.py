@@ -54,6 +54,11 @@ class TaskBoard(models.Model):
         store=True,
         default=0  # Añadir valor por defecto
     )
+    task_specific_fields = fields.Json(
+        string='Campos Específicos',
+        default={},
+        help="Almacena {field_name: {'type': 'char', 'label': 'Nombre', 'value': 'dato'}}"
+    )
     allowed_member_ids = fields.Many2many(
         'hr.employee',
         compute='_compute_allowed_members',
