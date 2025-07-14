@@ -70,22 +70,28 @@
                 <form string="Agregar Campo Dinámico">
                     <sheet>
                         <group>
+                            <!-- Mostrar información de la tarea actual -->
+                           
+                            <field name="name" readonly="1" class="oe_inline"/>
+
+                            <separator string="Configuración del Nuevo Campo"/>
+
                             <field name="dynamic_field_name" 
                                    string="Nombre Técnico" 
                                    required="1"
                                    help="Nombre interno del campo (ej: x_prioridad)"/>
-
+                        
                             <field name="dynamic_field_label" 
                                    string="Etiqueta Visible" 
                                    required="1"
                                    help="Texto que verán los usuarios"/>
-
+                        
                             <field name="dynamic_field_type" 
                                    string="Tipo de Campo" 
                                    required="1"
                                    widget="radio"
                                    options="{'horizontal': true}"/>
-
+                        
                             <field name="selection_options" 
                                    string="Opciones (Formato clave:valor)"
                                    attrs="{'required': [('dynamic_field_type','=','selection')], 
@@ -97,8 +103,7 @@
                         <button name="action_create_dynamic_field" 
                                 string="Crear Campo" 
                                 type="object" 
-                                class="oe_highlight"
-                                attrs="{'invisible': [('dynamic_field_name','=',False)]}"/>
+                                class="oe_highlight"/>
                         <button string="Cancelar" 
                                 special="cancel" 
                                 class="oe_link"/>
@@ -141,6 +146,9 @@
                     <field name="subtask_ids"/>
                     <field name="show_subtasks"/>
                     <field name="dynamic_field_ids"/>
+                    <field name="dynamic_fields_display" widget="html"/>
+                    <field name="task_specific_fields" widget="custom_fields_display"/>
+                    
                     <templates>
                         <t t-name="kanban-box" class="o_kanban_full_width">
                             <div class="o_kanban_record oe_kanban_global_click" style="width: 100%; background: transparent; box-shadow: none;">
@@ -156,7 +164,7 @@
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Progreso</th>
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Fecha</th>
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Subtareas</th>
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Campos Dinamicos</th>
+                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Campos Dinámicos</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -176,16 +184,24 @@
                                                             name="action_view_subtasks" 
                                                             string="Ver Subtareas"/>
                                                 </td>
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <button name="action_open_dynamic_field_creator" 
-                                                        string="Agregar Campo" 
-                                                        type="object"
-                                                        class="oe_highlight"/>
-
-                                                    <button name="action_remove_dynamic_field" 
-                                                        string="Eliminar Campo" 
-                                                        type="object"
-                                                        class="oe_highlight"/>
+                                                <td style="border: 1px solid #dee2e6; width: 200px;">
+                                                    <!-- Botones para manejar campos dinámicos -->
+                                                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                                                        <button name="action_open_dynamic_field_creator" 
+                                                            string="Agregar Campo" 
+                                                            type="object"
+                                                            class="oe_highlight btn-sm"/>
+                                                            
+                                                        <button name="action_remove_dynamic_field" 
+                                                            string="Eliminar Campo" 
+                                                            type="object"
+                                                            class="oe_highlight btn-sm"/>
+                                                            
+                                                        <!-- Mostrar campos dinámicos existentes -->
+                                                        <div t-if="record.dynamic_fields_display.value" 
+                                                             t-raw="record.dynamic_fields_display.value"
+                                                             style="margin-top: 5px; padding: 5px; border: 1px dashed #ccc; border-radius: 3px;"/>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -194,17 +210,18 @@
                             </div>
                             <style>
                                 .o_kanban_full_width {
-                                    width: 500% !important;
+                                    width: 100% !important;
                                     padding: 0 15px !important;
                                     background: transparent !important;
                                 }
                                 .o_kanban_full_width .o_kanban_record {
-                                    width: 500% !important;
+                                    width: 100% !important;
                                     margin: 8px 0 !important;
                                     max-width: none;
                                     padding: 10px;
-                                    background: transparent !important;
-                                    border: none !important;
+                                    background: white !important;
+                                    border: 1px solid #dee2e6 !important;
+                                    border-radius: 4px;
                                 }
                                 .kanban-table-container {
                                     width: 100%;
@@ -213,7 +230,7 @@
                                 .o_kanban_full_width .table {
                                     width: 100% !important;
                                     margin: 0 auto !important;
-                                    background-color: transparent !important;
+                                    background-color: white !important;
                                 }
                                 .o_kanban_group {
                                     width: 100% !important;
@@ -221,6 +238,10 @@
                                 }
                                 .o_kanban_record:after {
                                     display: none !important;
+                                }
+                                .btn-sm {
+                                    padding: 3px 6px !important;
+                                    font-size: 12px !important;
                                 }
                             </style>
                         </t>
