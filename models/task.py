@@ -22,7 +22,7 @@ class TaskBoard(models.Model):
     )
 
     dynamic_field_list = fields.Many2many(
-    'ir.model.fields',
+    'boards.planner',
     string='Campos Dinámicos',
     compute='_compute_dynamic_fields',
     store=False
@@ -87,7 +87,7 @@ class TaskBoard(models.Model):
     default=0.0
     )
 
-    show_subtasks = fields.Boolean(string="Show Subtasks", default=True)
+    show_subtasks = fields.Boolean(string="Show Subtasks")
     parent_id = fields.Many2one('task.board', 'Parent Task', index=True, ondelete='cascade')
     child_ids = fields.One2many('task.board', 'parent_id', 'Sub-tasks')
     selection_options = fields.Text(
@@ -862,13 +862,25 @@ class TaskBoard(models.Model):
         'target': 'new',
     }
     
-    @api.depends('subtask_ids')
+    @api.depends('subtask_ids.state')
     def _compute_progress(self):
         for task in self:
-            completed = task.subtask_ids.filtered(lambda x: x.state == 'done')
-            task.completed_subtasks = len(completed)
-            task.total_subtasks = len(task.subtask_ids)
-            task.progress = (task.completed_subtasks / task.total_subtasks) * 100 if task.total_subtasks > 0 else 0
+            subtasks = task.subtask_ids
+            total = len(subtasks)
+            done = len(subtasks.filtered(lambda x: x.state == 'done'))
+            
+            task.total_subtasks = total
+            task.completed_subtasks = done
+            
+            # Calcular progreso (0-100)
+            progress = total and (done * 100.0 / total) or 0
+            task.progress = progress
+            
+            # Cambiar estado automáticamente cuando progreso es 100%
+            if progress >= 100 and task.state != 'done':
+                task.state = 'done'
+            elif progress > 0 and progress < 100 and task.state != 'in_progress':
+                task.state = 'in_progress'
             
     @api.depends('state')
     def _compute_color_from_state(self):

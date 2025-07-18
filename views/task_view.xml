@@ -11,7 +11,6 @@
                 <form>
                     <sheet>
                         <group>
-                          
                             <group >
                                 <field name="name"/>
                                 <field name="allowed_member_ids"
@@ -62,6 +61,7 @@
                 </form>
             </field>
         </record>
+
         <!-- Vista del formulario de creación de campos dinámicos -->
         <record id="view_task_board_dynamic_fields_form" model="ir.ui.view">
             <field name="name">task.board.dynamic.fields.form</field>
@@ -105,6 +105,7 @@
                 </form>
             </field>
         </record>
+
         <record id="view_subtask_tree" model="ir.ui.view">
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
@@ -123,11 +124,12 @@
                 </tree>
             </field>
         </record>
+        
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
-                <kanban default_group_by="state" class="o_kanban_full_width">
+                <kanban create="false" edit="true" default_group_by="show_subtasks" class="o_kanban_full_width">
                     <field name="name"/>
                     <field name="person"/>
                     <field name="state"/>
@@ -152,9 +154,14 @@
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Estado</th>
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Progreso</th>
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Fecha</th>
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Subtareas</th>
                                                 <th style="border: 1px solid #dee2e6;">
                                                     <div class="mt-2">
+                                                        <button 
+                                                        type="object" 
+                                                        name="action_view_subtasks" 
+                                                        icon="fa-eye" 
+                                                        aria-label="Ver Subtareas"/>
+
                                                         <button name="action_open_dynamic_field_creator" 
                                                                 type="object"
                                                                 >
@@ -165,6 +172,7 @@
                                                                 type="object">
                                                             <i class="fa fa-trash"/>
                                                         </button>
+                                                        
                                                     </div>
                                                 </th>
                                             </tr>
@@ -179,21 +187,13 @@
                                                 </td>
                                                 <td style="border: 1px solid #dee2e6;">
                                                     <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
-                                                    <small class="text-muted">
+                                                    <small>
                                                         <field name="completed_subtasks"/>/<field name="total_subtasks"/>
                                                     </small>
                                                 </td>
                                                 <td style="border: 1px solid #dee2e6;">
                                                     <field name="completion_date" widget="daterange"/>
                                                 </td>
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <button type="object" 
-                                                            class="btn btn-primary btn-sm" 
-                                                            name="action_view_subtasks" 
-                                                            string="Ver Subtareas"/>
-                                                </td>
-
-                                                
                                             </tr>
                                         </tbody>
                                     </table>
@@ -201,12 +201,12 @@
                             </div>
                             <style>
                                 .o_kanban_full_width {
-                                    width: 500% !important;
+                                    width: 400% !important;
                                     padding: 0 15px !important;
                                     background: transparent !important;
                                 }
                                 .o_kanban_full_width .o_kanban_record {
-                                    width: 500% !important;
+                                    width: 400% !important;
                                     margin: 8px 0 !important;
                                     max-width: none;
                                     padding: 10px;
@@ -235,6 +235,7 @@
                 </kanban>
             </field>
         </record>
+
         <!-- Acciones -->
         <record id="task_planner.activity_tasks_action"
                 model="ir.actions.act_window">
