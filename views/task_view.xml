@@ -153,7 +153,20 @@
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Progreso</th>
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Fecha</th>
                                                 <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Subtareas</th>
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Acciones</th>
+                                                <th style="border: 1px solid #dee2e6;">
+                                                    <div class="mt-2">
+                                                        <button name="action_open_dynamic_field_creator" 
+                                                                type="object"
+                                                                >
+                                                            <i class="fa fa-plus"/>
+                                                        </button>
+
+                                                        <button name="action_remove_dynamic_field" 
+                                                                type="object">
+                                                            <i class="fa fa-trash"/>
+                                                        </button>
+                                                    </div>
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -180,21 +193,7 @@
                                                             string="Ver Subtareas"/>
                                                 </td>
 
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <!-- Botones para manejar campos dinámicos -->
-                                                    <div class="mt-2">
-                                                        <button name="action_open_dynamic_field_creator" 
-                                                            string="Agregar Campo" 
-                                                            type="object"
-                                                            class="btn btn-sm btn-primary"/>
-                                                    
-                                                        <button name="action_remove_dynamic_field" 
-                                                            string="Eliminar Campo" 
-                                                            type="object"
-                                                            class="btn btn-sm btn-danger ml-2"
-                                                          />
-                                                    </div>
-                                                </td>
+                                                
                                             </tr>
                                         </tbody>
                                     </table>
@@ -202,12 +201,12 @@
                             </div>
                             <style>
                                 .o_kanban_full_width {
-                                    width: 300% !important;
+                                    width: 500% !important;
                                     padding: 0 15px !important;
                                     background: transparent !important;
                                 }
                                 .o_kanban_full_width .o_kanban_record {
-                                    width: 300% !important;
+                                    width: 500% !important;
                                     margin: 8px 0 !important;
                                     max-width: none;
                                     padding: 10px;
