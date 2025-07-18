@@ -1,4 +1,4 @@
-from odoo import models, api, fields, _
+from odoo import models, api, fields
 from odoo.exceptions import ValidationError
 from .boards import STATES
 from odoo.models import BaseModel
@@ -8,7 +8,6 @@ import traceback
 from xml.etree import ElementTree as ET
 import logging
 from lxml import etree
-from html import escape
 _logger = logging.getLogger(__name__)
 
 class TaskBoard(models.Model):
@@ -21,12 +20,14 @@ class TaskBoard(models.Model):
         string="Department", 
         ondelete='cascade',
     )
+
     dynamic_field_list = fields.Many2many(
     'ir.model.fields',
     string='Campos Dinámicos',
     compute='_compute_dynamic_fields',
     store=False
     )
+
     sequence = fields.Integer(string='Sequence', default=10)
     drag = fields.Integer()
     files = fields.Many2many('ir.attachment', string="Files")
@@ -38,6 +39,7 @@ class TaskBoard(models.Model):
         required=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
+
     STATES = [
     ('new', 'New'),
     ('in_progress', 'In Progress'),
@@ -45,6 +47,7 @@ class TaskBoard(models.Model):
     ('stuck', 'Stuck'),
     ('view_subtasks', 'View Subtasks')  
     ]
+
     color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
     state = fields.Selection(STATES, default="new", string="State")
     subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
@@ -55,16 +58,13 @@ class TaskBoard(models.Model):
         store=True,
         default=0  # Añadir valor por defecto
     )
-    task_specific_fields = fields.Json(
-        string='Campos Específicos',
-        default={},
-        help="Almacena {field_name: {'type': 'char', 'label': 'Nombre', 'value': 'dato'}}"
-    )
+
     allowed_member_ids = fields.Many2many(
         'hr.employee',
         compute='_compute_allowed_members',
         string='Allowed Members'
     )
+
     completed_subtasks = fields.Integer(
         string="Completed Subtasks",
         compute='_compute_progress',
@@ -94,6 +94,7 @@ class TaskBoard(models.Model):
     string="Opciones de Selección",
     help="Ingrese opciones en formato clave:valor, una por línea. Ejemplo:\nopcion1:Opción 1\nopcion2:Opción 2"
     )
+
     dynamic_field_type = fields.Selection([
         ('char', 'Texto'),
         ('integer', 'Número Entero'),
@@ -104,9 +105,10 @@ class TaskBoard(models.Model):
         ('datetime', 'Fecha/Hora'),
         ('text', 'Texto Largo')],
         string='Tipo de Campo')
+    
     dynamic_field_name = fields.Char(string='Nombre Técnico')
     dynamic_field_label = fields.Char(string='Etiqueta')
-    dynamic_fields_data = fields.Json(string="campos dinamicos", default={})
+    dynamic_fields_data = fields.Text(string='Campos Dinámicos')
     dynamic_field_names = fields.Text(
     string="Campos Dinámicos",
     compute='_compute_dynamic_fields',
@@ -118,89 +120,20 @@ class TaskBoard(models.Model):
     compute='_compute_dynamic_fields',
     string="Campos Dinámicos"
     )
-
-    task_specific_fields = fields.Text(
-        string='Campos Dinámicos',
-        default='{}',
-        help="Almacena campos específicos para esta tarea en formato JSON"
-    )
-
-    dynamic_fields_data = fields.Text(
-    string='Campos Dinámicos',
-    default='{}',  # JSON vacío como string
-    help="Almacena los campos dinámicos en formato JSON"
-    )
-
-    dynamic_fields_display = fields.Html(
-        string='Campos Dinámicos',
-        compute='_compute_dynamic_fields_display',
-        sanitize=False,
-        store=True  # Añadir store=True para persistencia
-    )
-
-    @api.depends('dynamic_fields_data')
-    def _compute_dynamic_fields_display(self):
-        """Calcula la representación HTML de los campos dinámicos para Kanban y Form"""
-        for task in self:
-            try:
-                fields_data = json.loads(task.dynamic_fields_data or '{}')
-                
-                if not fields_data:
-                    task.dynamic_fields_display = False
-                    continue
-                
-                # Versión simplificada para Kanban
-                if self.env.context.get('kanban_display'):
-                    # Mostrar solo el primer campo o los más importantes
-                    first_field = next(iter(fields_data.values()), {})
-                    value = first_field.get('value', '')
-                    if isinstance(value, bool):
-                        value = '✓' if value else '✗'
-                    task.dynamic_fields_display = f"""
-                    <div>
-                        <small>{first_field.get('label', 'Campo')}:</small>
-                        <strong>{value}</strong>
-                    </div>
-                    """
-                else:
-                    # Versión completa para formulario
-                    rows = []
-                    for field_name, field_data in fields_data.items():
-                        label = field_data.get('label', field_name)
-                        value = field_data.get('value', '')
-                        
-                        if isinstance(value, bool):
-                            value = '✓' if value else '✗'
-                        elif value is None:
-                            value = ''
-                        elif field_data.get('type') == 'selection' and 'selection_options' in field_data:
-                            value = field_data['selection_options'].get(str(value), value)
     
-                        rows.append(f"""
-                        <tr>
-                            <td style="width:30%; font-weight:bold;">{label}</td>
-                            <td>{value}</td>
-                        </tr>
-                        """)
     
-                    task.dynamic_fields_display = f"""
-                    <div class="container mt-2">
-                        <table class="table table-sm table-bordered">
-                            <tbody>
-                                {''.join(rows)}
-                            </tbody>
-                        </table>
-                    </div>
-                    """ if rows else False
-    
-            except Exception as e:
-                _logger.error("Error mostrando campos: %s", str(e))
-                task.dynamic_fields_display = """
-                <div class="alert alert-danger">
-                    Error mostrando campos dinámicos
-                </div>
-                """
+    @api.model
+    def create(self, vals):
+        task = super(TaskBoard, self).create(vals)
 
+        # Forzar recarga del kanban
+        if self.env.context.get('kanban_auto_refresh'):
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'reload',
+            }
+
+        return task
     def _compute_dynamic_fields(self):
         for record in self:
             # Obtener todos los campos dinámicos (que empiezan con x_)
@@ -238,7 +171,6 @@ class TaskBoard(models.Model):
             'tag': 'reload',
         }
 
-    
     #eliminar campos dinamicos 
     def action_remove_dynamic_field(self):
         """Elimina un campo dinámico asegurándose de borrar referencias y la columna DB."""
@@ -348,66 +280,43 @@ class TaskBoard(models.Model):
         
     #creacion de campos dinamicos
     def action_create_dynamic_field(self):
+        """Versión final que asegura la creación de múltiples campos"""
         self.ensure_one()
         try:
-            # Validaciones básicas
+            # Validaciones
             if not self.dynamic_field_type:
                 raise ValidationError("Debe seleccionar un tipo de campo")
             if not self.dynamic_field_name:
                 raise ValidationError("El nombre técnico es obligatorio")
             
-            # Generar nombre válido para el campo
-            field_name = self._generate_valid_field_name(self.dynamic_field_name.strip())
-            
-            # Cargar datos existentes
-            current_data = {}
-            if self.dynamic_fields_data:
-                try:
-                    current_data = json.loads(self.dynamic_fields_data)
-                except (json.JSONDecodeError, TypeError):
-                    current_data = {}
+            # Generar nombre válido
+            field_name = self._generate_valid_field_name(self.dynamic_field_name)
             
             # Verificar si el campo ya existe
-            if field_name in current_data:
-                raise ValidationError(f"El campo {field_name} ya existe en esta tarea")
+            existing_field = self.env['ir.model.fields'].search([
+                ('model', '=', self._name),
+                ('name', '=', field_name)
+            ], limit=1)
             
-            # Preparar estructura del nuevo campo
-            field_data = {
-                'type': self.dynamic_field_type,
-                'label': self.dynamic_field_label or field_name,
-                'value': False
-            }
+            if existing_field:
+                raise ValidationError(f"El campo {field_name} ya existe en este modelo")
             
-            # Manejar campos de selección
-            if self.dynamic_field_type == 'selection':
-                options = {}
-                for line in (self.selection_options or '').split('\n'):
-                    line = line.strip()
-                    if line and ':' in line:
-                        key, val = line.split(':', 1)
-                        options[key.strip()] = val.strip()
-                field_data['selection_options'] = options
+            # Crear el campo en el modelo
+            self._create_field_in_model(field_name)
             
-            # Actualizar datos
-            current_data[field_name] = field_data
-            self.dynamic_fields_data = json.dumps(current_data)
+            # Actualizar vistas
+            self._update_views_completely(field_name)
             
-            # Limpiar campos del formulario
-            self.dynamic_field_name = False
-            self.dynamic_field_label = False
-            self.dynamic_field_type = False
-            self.selection_options = False
+            # Limpiar caché
+            self._safe_cache_cleanup()
             
-            # Forzar recarga de la vista
             return {
                 'type': 'ir.actions.client',
                 'tag': 'reload',
+                'params': {'wait': True}
             }
-            
-        except ValidationError as ve:
-            raise ve
         except Exception as e:
-            _logger.error("Error al crear campo dinámico: %s\n%s", str(e), traceback.format_exc())
+            _logger.error("Error completo: %s", traceback.format_exc())
             raise ValidationError(f"Error al crear campo: {str(e)}")
 
     def _safe_cache_cleanup(self):
@@ -931,20 +840,16 @@ class TaskBoard(models.Model):
             raise ValidationError(f"Error técnico al crear el campo en la base de datos: {str(e)}")
 
     def action_open_dynamic_field_creator(self):
-        """Abre el diálogo para crear campo dinámico"""
+        """Abrir diálogo para crear campo dinámico"""
         self.ensure_one()
         return {
-            'name': f'Agregar Campo Dinámico a: {self.name}',
+            'name': ('Agregar Campo Dinámico'),
             'type': 'ir.actions.act_window',
             'res_model': 'task.board',
-            'res_id': self.id,  # Pasa el ID de la tarea actual
+            'res_id': self.id,
             'view_mode': 'form',
             'view_id': self.env.ref('task_planner.view_task_board_dynamic_fields_form').id,
             'target': 'new',
-            'context': {
-                'default_name': self.name,  # Pasa el nombre de la tarea
-                'form_view_ref': 'task_planner.view_task_board_dynamic_fields_form',
-            }
         }
 
     def action_add_subtask (self):

@@ -48,7 +48,7 @@ class Boards(models.Model):
             'view_mode': 'kanban',
             'view_id': self.env.ref('task_planner.activity_planner_task_view_kanban').id,
             'target': 'current',
-            'domain': [('id', '=', self.id)],
+            'domain': [('department_id', '=', self.id)],
             'context': {
                 'default_name': self.name,
                 'default_department_id': self.department_id.id if self.department_id else False,

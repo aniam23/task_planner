@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Form view para campos dinámicos -->
+        <record id="view_task_board_dynamic_field_form" model="ir.ui.view">
+            <field name="name">task.board.dynamic.field.form</field>
+            <field name="model">task.board.dynamic.field</field>
+            <field name="arch" type="xml">
+                <form string="Campo Dinámico">
+                    <sheet>
+                        <group>
+                            <field name="field_name" readonly="1" string="Nombre Técnico"/>
+                            <field name="field_label" string="Etiqueta Visible"/>
+                            <field name="field_type" readonly="1" string="Tipo de Campo"/>
+                            <field name="selection_options" />
+                            <field name="field_value" 
+                                   options="{'no_open': True}"/>
+                            <field name="display_value" readonly="1" string="Valor Actual"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+        
+        <!-- Tree view para campos dinámicos -->
+        <record id="view_task_board_dynamic_field_tree" model="ir.ui.view">
+            <field name="name">task.board.dynamic.field.tree</field>
+            <field name="model">task.board.dynamic.field</field>
+            <field name="arch" type="xml">
+                <tree string="Campos Dinámicos">
+                    <field name="field_name" string="Nombre Técnico"/>
+                    <field name="field_label" string="Etiqueta"/>
+                    <field name="field_type" string="Tipo"/>
+                    <field name="display_value" string="Valor"/>
+                </tree>
+            </field>
+        </record>
+    </data>
+</odoo>
