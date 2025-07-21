@@ -282,32 +282,28 @@ class TaskBoard(models.Model):
         
     #creacion de campos dinamicos
     def action_create_dynamic_field(self):
-        """asegura que el campo aparezca en las vistas"""
+        """Versión final que maneja correctamente el checkbox y agrega como columnas"""
         self.ensure_one()
-        try:
-            # Validaciones
-            if not self.dynamic_field_type:
-                raise ValidationError("Debe seleccionar un tipo de campo")
-            if not self.dynamic_field_name:
-                raise ValidationError("El nombre técnico es obligatorio")
-            
-            # Generar nombre válido
-            field_name = self._generate_valid_field_name(self.dynamic_field_name)
-            
-            # Crear el campo en el modelo
-            self._create_field_in_model(field_name)
-            
-            # Actualizar vistas de forma más robusta
-            self._update_views_completely(field_name)
-            
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'reload',
-                'params': {'wait': True}
-            }
-        except Exception as e:
-            _logger.error("Error completo: %s", traceback.format_exc())
-            raise ValidationError(f"Error al crear campo: {str(e)}")
+        
+        if not self.dynamic_field_name or not self.dynamic_field_type:
+            raise ValidationError("Debe especificar nombre y tipo de campo")
+    
+        # Generar nombre válido
+        field_name = self._generate_valid_field_name(self.dynamic_field_name)
+        
+        # Crear el campo en el modelo
+        self._create_field_in_model(field_name)
+        
+        # Actualizar vistas según el checkbox
+        if self.apply_to_specific_task:
+            self._update_kanban_view_for_task(field_name, self.id)
+        else:
+            self._update_kanban_view_globally(field_name)
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }
 
     def _update_kanban_view_globally(self, field_name):
         """Actualiza vista kanban para todas las tareas"""
@@ -899,13 +895,13 @@ class TaskBoard(models.Model):
             'name': field_name,
             'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
         }
-    
+
         # Configurar widget según tipo de campo
         if self.dynamic_field_type == 'selection':
             field_attrs['widget'] = 'selection'
         elif self.dynamic_field_type in ['date', 'datetime']:
             field_attrs['widget'] = self.dynamic_field_type
-    
+
         if specific_task and task_id:
             # Versión para tarea específica
             return f"""
