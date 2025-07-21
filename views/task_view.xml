@@ -2,7 +2,7 @@
 <odoo>
     <data>
         <!-- Vista Formulario - Corregida -->
-         <record id="activity_planner_details_view_form"
+        <record id="activity_planner_details_view_form"
                 model="ir.ui.view">
             <field name="name">task.board.details.form</field>
             <field name="model">task.board</field>
@@ -70,22 +70,31 @@
                 <form string="Agregar Campo Dinámico">
                     <sheet>
                         <group>
+                            <field name="name" 
+                                   string="Nombre de Tarea" 
+                                   attrs="{'invisible': [('apply_to_specific_task','=',False)]}"
+                                   help="Seleccione la tarea específica para este campo"/>
+
+                            <field name="apply_to_specific_task" 
+                                   string="Aplicar a tarea específica" 
+                                   widget="boolean_checkbox"/>
+
                             <field name="dynamic_field_name" 
                                    string="Nombre Técnico" 
                                    required="1"
                                    help="Nombre interno del campo (ej: x_prioridad)"/>
-
+                        
                             <field name="dynamic_field_label" 
                                    string="Etiqueta Visible" 
                                    required="1"
                                    help="Texto que verán los usuarios"/>
-
+                        
                             <field name="dynamic_field_type" 
                                    string="Tipo de Campo" 
                                    required="1"
                                    widget="radio"
                                    options="{'horizontal': true}"/>
-
+                        
                             <field name="selection_options" 
                                    string="Opciones (Formato clave:valor)"
                                    attrs="{'required': [('dynamic_field_type','=','selection')], 
@@ -105,7 +114,7 @@
                 </form>
             </field>
         </record>
-
+ 
         <record id="view_subtask_tree" model="ir.ui.view">
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
@@ -139,7 +148,6 @@
                     <field name="completion_date"/>
                     <field name="subtask_ids"/>
                     <field name="show_subtasks"/>
-
                     <templates>
                         <t t-name="kanban-box" class="o_kanban_full_width">
                             <div class="o_kanban_record oe_kanban_global_click" style="width: 100%; background: transparent; box-shadow: none;">

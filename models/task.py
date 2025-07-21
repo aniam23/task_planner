@@ -21,6 +21,10 @@ class TaskBoard(models.Model):
         ondelete='cascade',
     )
 
+    apply_to_specific_task = fields.Boolean(
+        string="Aplicar a tarea específica",
+        help="Si está marcado, el campo dinámico se aplicará solo a la tarea seleccionada"
+    )
     dynamic_field_list = fields.Many2many(
     'boards.planner',
     string='Campos Dinámicos',
@@ -120,20 +124,17 @@ class TaskBoard(models.Model):
     compute='_compute_dynamic_fields',
     string="Campos Dinámicos"
     )
-    
-    
+      
     @api.model
     def create(self, vals):
         task = super(TaskBoard, self).create(vals)
-
-        # Forzar recarga del kanban
         if self.env.context.get('kanban_auto_refresh'):
             return {
                 'type': 'ir.actions.client',
                 'tag': 'reload',
             }
-
         return task
+
     def _compute_dynamic_fields(self):
         for record in self:
             # Obtener todos los campos dinámicos (que empiezan con x_)
@@ -143,6 +144,7 @@ class TaskBoard(models.Model):
                 ('state', '=', 'manual')
             ])
             record.dynamic_field_ids = dynamic_fields
+
     def action_toggle_subtasks(self):
         for task in self:
             task.show_subtasks = not task.show_subtasks
@@ -151,14 +153,14 @@ class TaskBoard(models.Model):
     def action_view_subtasks(self):
         self.ensure_one()
         return {
-        'name': 'Subtareas',  # Título de la ventana
+        'name': 'Subtareas',  
         'type': 'ir.actions.act_window',
-        'res_model': 'subtask.board',  # Modelo de subtareas
-        'view_mode': 'tree,form',  # Vista tree y form
-        'views': [(False, 'tree'), (False, 'form')],  # Vista tree por defecto
-        'domain': [('task_id', '=', self.id)],  # Filtra subtareas de esta tarea
-        'context': {'default_task_id': self.id},  # Contexto para creación
-        'target': 'new',  # Abre en nueva ventana (modal)
+        'res_model': 'subtask.board', 
+        'view_mode': 'tree,form',  
+        'views': [(False, 'tree'), (False, 'form')],  
+        'domain': [('task_id', '=', self.id)],  
+        'context': {'default_task_id': self.id},  
+        'target': 'new', 
     }
 
     def action_close_subtasks(self):
@@ -280,7 +282,7 @@ class TaskBoard(models.Model):
         
     #creacion de campos dinamicos
     def action_create_dynamic_field(self):
-        """Versión final que asegura la creación de múltiples campos"""
+        """asegura que el campo aparezca en las vistas"""
         self.ensure_one()
         try:
             # Validaciones
@@ -292,23 +294,11 @@ class TaskBoard(models.Model):
             # Generar nombre válido
             field_name = self._generate_valid_field_name(self.dynamic_field_name)
             
-            # Verificar si el campo ya existe
-            existing_field = self.env['ir.model.fields'].search([
-                ('model', '=', self._name),
-                ('name', '=', field_name)
-            ], limit=1)
-            
-            if existing_field:
-                raise ValidationError(f"El campo {field_name} ya existe en este modelo")
-            
             # Crear el campo en el modelo
             self._create_field_in_model(field_name)
             
-            # Actualizar vistas
+            # Actualizar vistas de forma más robusta
             self._update_views_completely(field_name)
-            
-            # Limpiar caché
-            self._safe_cache_cleanup()
             
             return {
                 'type': 'ir.actions.client',
@@ -318,6 +308,99 @@ class TaskBoard(models.Model):
         except Exception as e:
             _logger.error("Error completo: %s", traceback.format_exc())
             raise ValidationError(f"Error al crear campo: {str(e)}")
+
+    def _update_kanban_view_globally(self, field_name):
+        """Actualiza vista kanban para todas las tareas"""
+        field_attrs = {
+            'name': field_name,
+            'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
+        }
+
+        if self.dynamic_field_type == 'selection':
+            field_attrs['widget'] = 'selection'
+        elif self.dynamic_field_type in ['date', 'datetime']:
+            field_attrs['widget'] = self.dynamic_field_type
+
+        arch = f"""
+        <data>
+            <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
+                <div class="oe_kanban_content" style="margin-top:8px">
+                    <field name="{field_name}" {'widget="'+field_attrs['widget']+'"' if 'widget' in field_attrs else ''}/>
+                </div>
+            </xpath>
+        </data>
+        """
+
+        self._update_view(
+            view_xml_id='task_planner.activity_planner_task_view_kanban',
+            view_type='kanban',
+            arch=arch,
+            view_name=f'{self._name}.kanban.global_inherit_{field_name}'
+        )
+
+    def _update_kanban_view_for_task(self, field_name, task_id):
+        """Versión corregida que funciona con todos los tipos de campos"""
+        self.ensure_one()
+
+        # Configuración del campo según su tipo
+        field_attrs = {
+            'name': field_name,
+            'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
+        }
+
+        # Widget especial para ciertos tipos de campo
+        if self.dynamic_field_type == 'selection':
+            field_attrs['widget'] = 'selection'
+        elif self.dynamic_field_type in ['date', 'datetime']:
+            field_attrs['widget'] = self.dynamic_field_type
+
+        # Generar el XML de forma segura
+        arch = f"""
+        <data>
+            <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
+                <t t-if="record.id == {task_id}">
+                    <div class="oe_kanban_content" style="margin-top:8px">
+                        <field name="{field_name}" {'widget="'+field_attrs['widget']+'"' if 'widget' in field_attrs else ''}/>
+                    </div>
+                </t>
+            </xpath>
+        </data>
+        """
+
+        self._update_view(
+            view_xml_id='task_planner.activity_planner_task_view_kanban',
+            view_type='kanban',
+            arch=arch,
+            view_name=f'{self._name}.kanban.task_{task_id}_inherit_{field_name}'
+        )
+
+   
+
+    def _update_view(self, view_xml_id, view_type, arch, view_name):
+        """Actualiza vista de manera genérica"""
+        try:
+            base_view = self.env.ref(view_xml_id)
+            inherit_view = self.env['ir.ui.view'].search([
+                ('name', '=', view_name),
+                ('model', '=', self._name)
+            ], limit=1)
+
+            if inherit_view:
+                inherit_view.write({'arch': arch})
+            else:
+                self.env['ir.ui.view'].create({
+                    'name': view_name,
+                    'type': view_type,
+                    'model': self._name,
+                    'inherit_id': base_view.id,
+                    'arch': arch,
+                    'active': True
+                })
+
+            self.env['ir.ui.view'].clear_caches()
+        except Exception as e:
+            _logger.error("Error updating view: %s", str(e))
+            raise ValidationError("Error al actualizar vista kanban")
 
     def _safe_cache_cleanup(self):
         """Método mejorado para limpiar caché"""
@@ -375,6 +458,7 @@ class TaskBoard(models.Model):
         except Exception as e:
             _logger.error("Error creando campo: %s", str(e))
             raise
+        
     def _generate_valid_field_name(self, name):
         """
         Genera un nombre técnico válido para un campo de Odoo:
@@ -388,6 +472,7 @@ class TaskBoard(models.Model):
         if len(name) > 2 and name[2].isdigit():
             name = f"x_field_{name[2:]}"
         return name
+        
     def _update_views_completely(self, field_name):
         """Método mejorado para actualizar todas las vistas necesarias"""
         try:
@@ -514,6 +599,7 @@ class TaskBoard(models.Model):
         except Exception as e:
             _logger.error("Error actualizando vista %s: %s", view_xml_id, str(e))
             raise ValidationError(f"Error al actualizar vista {view_type}")
+
     def _generate_view_arch_with_field(self, base_view, view_type, field_name):
         """Genera XML para insertar el nuevo campo manteniendo los existentes"""
         position_info = self._get_best_position_for_field(base_view, view_type)
@@ -523,13 +609,11 @@ class TaskBoard(models.Model):
             'string': self.dynamic_field_label or field_name.replace('_', ' ').title(),
             'optional': 'show'
         }
-
         # Configurar widgets especiales
         if self.dynamic_field_type == 'selection':
             field_attrs['widget'] = 'selection'
         elif self.dynamic_field_type in ['date', 'datetime']:
             field_attrs['widget'] = self.dynamic_field_type
-
         return f"""
         <data>
             <xpath expr="{position_info['xpath']}" position="{position_info['position']}">
@@ -566,7 +650,7 @@ class TaskBoard(models.Model):
                     'xpath': "//sheet" if doc.xpath("//sheet") else "/*",
                     'position': 'inside'
                 }
-                
+                  
             elif view_type == 'tree':
                 # Buscar campo fecha para insertar después
                 fecha_field = doc.xpath("//field[contains(translate(@name, 'FECH', 'fech'), 'fecha')]")
@@ -596,34 +680,8 @@ class TaskBoard(models.Model):
                 'xpath': "/*",
                 'position': 'inside'
             }
-    def _generate_kanban_view_arch(self, field_name):
-        """Genera XML para crear una nueva columna en el kanban"""
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label or field_name,
-        }
 
-        # Configurar widgets especiales
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-
-        return f"""
-        <data>
-            <!-- Añadir encabezado de columna -->
-            <xpath expr="//th[contains(text(), 'Campos Dinamicos')]" position="before">
-                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">{field_attrs['string']}</th>
-            </xpath>
-
-            <!-- Añadir celda de datos -->
-            <xpath expr="//td[contains(., 'Campos Dinamicos')]" position="before">
-                <td style="border: 1px solid #dee2e6;">
-                    <field {' '.join([f'{k}="{v}"' for k, v in field_attrs.items()])}/>
-                </td>
-            </xpath>
-        </data>
-        """
+    
 
     def _create_field_in_model(self, field_name):
         """Crea el campo dinámico en el modelo (versión corregida)"""
@@ -679,10 +737,25 @@ class TaskBoard(models.Model):
             _logger.error("Error creando campo: %s", str(e))
             raise ValidationError(f"Error al crear el campo: {str(e)}")
 
+    def is_dynamic_field_for_task(self, field_name):
+        """Verifica si un campo dinámico está asociado específicamente a esta tarea"""
+        self.ensure_one()
+
+        if not self.dynamic_fields_data:
+            return False
+
+        try:
+            dynamic_data = json.loads(self.dynamic_fields_data)
+            return field_name in dynamic_data
+        except (json.JSONDecodeError, TypeError):
+            _logger.warning("Error al parsear dynamic_fields_data en tarea %s", self.id)
+            return False
     def _generate_view_arch_with_field(self, base_view, view_type, field_name):
         """Genera el XML para la vista con el nuevo campo"""
         # Determinar la mejor posición para insertar el campo
         position_info = self._get_best_position_for_field(base_view, view_type)
+        if self.apply_to_specific_task and not self.is_dynamic_field_for_task(field_name):
+            return "<data/>" 
         # Configurar atributos del campo
         field_attrs = {
             'name': field_name,
@@ -702,6 +775,194 @@ class TaskBoard(models.Model):
             </xpath>
         </data>
         """
+  
+
+    def _format_field_attrs(self, attrs):
+        """Formatea atributos para XML de manera segura"""
+        safe_attrs = {}
+        for k, v in attrs.items():
+            if v is not None:
+                safe_attrs[k] = v
+        return ' '.join([f'{k}="{v}"' for k, v in safe_attrs.items()])
+
+    def _generate_safe_view_arch(self, view_type, field_name, base_view=None):
+        """
+        Genera XML seguro para la vista
+        Versión simplificada y unificada para todos los tipos de vista
+        """
+        field_attrs = {
+            'name': field_name,
+            'string': self.dynamic_field_label or field_name.replace('_', ' ').title(),
+        }
+
+        # Configura widgets especiales según el tipo de campo
+        if self.dynamic_field_type == 'selection':
+            field_attrs['widget'] = 'selection'
+        elif self.dynamic_field_type in ['date', 'datetime']:
+            field_attrs['widget'] = self.dynamic_field_type
+
+        # Estructura básica para vista kanban
+        if view_type == 'kanban':
+            return f"""
+            <data>
+                <xpath expr="//templates//div[hasclass('o_kanban_record')]//field[@name='display_name']" position="after">
+                    <div class="oe_kanban_content">
+                        <field {self._format_field_attrs(field_attrs)}/>
+                    </div>
+                </xpath>
+            </data>
+            """
+        # Estructura para vista form
+        elif view_type == 'form':
+            return f"""
+            <data>
+                <xpath expr="//sheet" position="inside">
+                    <group>
+                        <field {self._format_field_attrs(field_attrs)}/>
+                    </group>
+                </xpath>
+            </data>
+            """
+        # Estructura para vista tree
+        elif view_type == 'tree':
+            return f"""
+            <data>
+                <xpath expr="//tree" position="inside">
+                    <field {self._format_field_attrs(field_attrs)}/>
+                </xpath>
+            </data>
+            """
+        # Estructura por defecto
+        else:
+            return f"""
+            <data>
+                <field {self._format_field_attrs(field_attrs)} position="attributes">
+                    <attribute name="invisible">0</attribute>
+                </field>
+            </data>
+            """
+
+    def _format_field_attrs(self, attrs):
+        """Formatea atributos para XML de manera segura"""
+        safe_attrs = {}
+        for k, v in attrs.items():
+            if v is not None:
+                safe_attrs[k] = v
+        return ' '.join([f'{k}="{v}"' for k, v in safe_attrs.items()])
+
+    def _update_specific_view(self, view_xml_id, view_type, field_name):
+        """Versión corregida para actualizar vistas"""
+        try:
+            base_view = self.env.ref(view_xml_id)
+            if not base_view:
+                _logger.warning(f"Vista {view_xml_id} no encontrada")
+                return False
+
+            # Generar archivo XML según tipo de vista
+            if view_type == 'kanban':
+                arch = self._generate_kanban_view_arch(field_name)
+            else:
+                arch = self._generate_view_arch_with_field(
+                    base_view=base_view,
+                    view_type=view_type,
+                    field_name=field_name
+                )
+
+            inherit_view_name = f"{self._name}.{view_type}.inherit.{field_name}"
+            inherit_view = self.env['ir.ui.view'].search([
+                ('name', '=', inherit_view_name),
+                ('model', '=', self._name)
+            ], limit=1)
+
+            if inherit_view:
+                inherit_view.write({'arch': arch})
+            else:
+                self.env['ir.ui.view'].create({
+                    'name': inherit_view_name,
+                    'type': view_type,
+                    'model': self._name,
+                    'inherit_id': base_view.id,
+                    'arch': arch,
+                    'active': True
+                })
+
+            self.env['ir.ui.view'].clear_caches()
+            return True
+
+        except Exception as e:
+            _logger.error(f"Error actualizando vista {view_xml_id}: {str(e)}")
+            raise ValidationError(f"Error al actualizar vista {view_type}: {str(e)}")
+
+    def _generate_kanban_view_arch(self, field_name, specific_task=False, task_id=None):
+        """Genera XML para la vista kanban como columnas"""
+        field_attrs = {
+            'name': field_name,
+            'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
+        }
+    
+        # Configurar widget según tipo de campo
+        if self.dynamic_field_type == 'selection':
+            field_attrs['widget'] = 'selection'
+        elif self.dynamic_field_type in ['date', 'datetime']:
+            field_attrs['widget'] = self.dynamic_field_type
+    
+        if specific_task and task_id:
+            # Versión para tarea específica
+            return f"""
+            <data>
+                <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
+                    <div class="oe_kanban_global_click">
+                        <div class="row" t-if="record.id == {task_id}">
+                            <div class="col-3">
+                                <field {self._format_field_attrs(field_attrs)}/>
+                            </div>
+                        </div>
+                    </div>
+                </xpath>
+            </data>
+            """
+        else:
+            # Versión global
+            return f"""
+            <data>
+                <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
+                    <div class="oe_kanban_global_click">
+                        <div class="row">
+                            <div class="col-3">
+                                <field {self._format_field_attrs(field_attrs)}/>
+                            </div>
+                        </div>
+                    </div>
+                </xpath>
+            </data>
+            """
+    def _update_kanban_view(self, field_name):
+        """Actualiza la vista kanban de manera segura"""
+        try:
+            kanban_arch = self._generate_kanban_view_arch(field_name)
+            base_view = self.env.ref('task_planner.activity_planner_task_view_kanban')
+
+            inherit_view = self.env['ir.ui.view'].search([
+                ('name', '=', f'{self._name}.kanban.inherit.{field_name}'),
+                ('model', '=', self._name)
+            ], limit=1)
+
+            if inherit_view:
+                inherit_view.write({'arch': kanban_arch})
+            else:
+                self.env['ir.ui.view'].create({
+                    'name': f'{self._name}.kanban.inherit.{field_name}',
+                    'type': 'kanban',
+                    'model': self._name,
+                    'inherit_id': base_view.id,
+                    'arch': kanban_arch,
+                    'active': True
+                })
+
+            self.env['ir.ui.view'].clear_caches()
+        except Exception as e:
+            _logger.error("Error updating kanban view: %s", str(e))
+            raise ValidationError("Error al actualizar vista kanban")
 
     def _get_best_position_for_field(self, base_view, view_type):
         """Determina la mejor posición para insertar el campo en la vista"""
@@ -868,14 +1129,11 @@ class TaskBoard(models.Model):
             subtasks = task.subtask_ids
             total = len(subtasks)
             done = len(subtasks.filtered(lambda x: x.state == 'done'))
-            
             task.total_subtasks = total
             task.completed_subtasks = done
-            
             # Calcular progreso (0-100)
             progress = total and (done * 100.0 / total) or 0
             task.progress = progress
-            
             # Cambiar estado automáticamente cuando progreso es 100%
             if progress >= 100 and task.state != 'done':
                 task.state = 'done'
