@@ -28,7 +28,7 @@
                         <notebook>
                             <page string="Subtask">
                                 <field name="subtask_ids">
-                                    <tree class="o_tree_view"
+                                    <tree  class="o_tree_view"
                                           decoration-danger="state == 'stuck'"
                                           decoration-warning="state == 'new'"
                                           decoration-info="state == 'in_progress'"
@@ -45,7 +45,7 @@
                                                class="oe_table_titles" />
                                         <button type="object"
                                                 class="btn btn-primary"
-                                                name="open_subtask_form"
+                                                name="action_open_activity_tree"
                                                 icon="fa-solid fa-bars" />
                                     </tree>
                                 </field>
@@ -129,7 +129,7 @@
                     <field name="person" widget="many2one_avatar_user" string="Asignado"/>
                     <field name="state" widget="selection" string="Estado"/>
                     <field name="completion_date" widget="daterange" string="Fecha Límite"/>
-                    <button name="open_subtask_form" type="object" class="btn btn-link" icon="fa-eye" string=""/>
+                    <button name="action_open_activity_tree" type="object" class="btn btn-link" icon="fa-eye" string=""/>
                 </tree>
             </field>
         </record>

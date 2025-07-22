@@ -20,7 +20,7 @@ class SubtaskBoard(models.Model):
         tracking=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
-    
+    activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Actividades')
     # Campo computado para el dominio
     allowed_member_ids = fields.Many2many(
         'hr.employee',
@@ -29,6 +29,19 @@ class SubtaskBoard(models.Model):
         help="Members of the parent task's department"
     )
     
+    def action_open_activity_tree(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'subtask.activity',
+            'view_mode': 'tree',
+            'target': 'new',
+            'context': {
+                'default_res_model': 'subtask.board',
+                'default_res_id': self.id,
+            }
+        }
+
     @api.depends('task_id.department_id.member_ids')
     def _compute_allowed_member_ids(self):
         for subtask in self:
@@ -50,14 +63,4 @@ class SubtaskBoard(models.Model):
                         "El empleado asignado debe ser miembro del departamento de la tarea principal"
                     )
 
-    def open_subtask_form(self):
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Subtask Board',
-            'res_model': 'subtask.board',
-            'res_id': self.id,
-            'view_mode': 'form',
-            'view_id': self.env.ref('task_planner.activity_planner_subtask_form').id,
-            'target': 'current',
-        }
+    

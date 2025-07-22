@@ -25,6 +25,7 @@ class TaskBoard(models.Model):
         string="Aplicar a tarea específica",
         help="Si está marcado, el campo dinámico se aplicará solo a la tarea seleccionada"
     )
+    
     dynamic_field_list = fields.Many2many(
     'boards.planner',
     string='Campos Dinámicos',

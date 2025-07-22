@@ -2,3 +2,4 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_boards_planner,boards.planner,model_boards_planner,base.group_user,1,1,1,1
 access_task_board,task_board,model_task_board,base.group_user,1,1,1,1
 access_subtask_board,subtask.board,model_subtask_board,base.group_user,1,1,1,1
+access_subtask_activity,subtask.activity,model_subtask_activity,base.group_user,1,1,1,1
