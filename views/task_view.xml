@@ -2,61 +2,44 @@
 <odoo>
     <data>
         <!-- Vista Formulario - Corregida -->
-        <record id="activity_planner_details_view_form"
-                model="ir.ui.view">
+        <record id="activity_planner_details_view_form" model="ir.ui.view">
             <field name="name">task.board.details.form</field>
             <field name="model">task.board</field>
-            <field name="arch"
-                   type="xml">
+            <field name="arch" type="xml">
                 <form>
                     <sheet>
                         <group>
-                            <group >
-                                <field name="name"/>
-                                <field name="allowed_member_ids"
-                                       invisible="1" />
-                                <field name="person"
-                                       widget="many2one_avatar_user"/>
-                                <field name="state"
-                                       widget="selection"
-                                       readonly="1" />
-                                <field name="completion_date" />
-                                <field name="files"
-                                       widget="many2many_binary" />
+                            <group>
+                                <field name="name" string="Task Name"/>
+                                <field name="allowed_member_ids" invisible="1"/>
+                                <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
+                                <field name="state" widget="selection" readonly="1" string="Status"/>
+                                <field name="completion_date" string="Due Date"/>
+                                <field name="files" widget="many2many_binary" string="Attachments"/>
                             </group>
                         </group>
                         <notebook>
                             <page string="Subtask">
                                 <field name="subtask_ids">
-                                    <tree  class="o_tree_view"
+                                    <tree class="o_tree_view"
                                           decoration-danger="state == 'stuck'"
                                           decoration-warning="state == 'new'"
                                           decoration-info="state == 'in_progress'"
                                           decoration-success="state == 'done'">
-                                        <field name="drag"
-                                               widget="handle" />
-                                        <field name="name" />
-                                        <field name="person"
-                                               widget="many2one_avatar_user" />
-                                        <field name="state"
-                                               widget="selection" />
-                                        <field name="completion_date"
-                                               widget="daterange"
-                                               class="oe_table_titles" />
-                                        <button type="object"
-                                                class="btn btn-primary"
-                                                name="action_open_activity_tree"
-                                                icon="fa-solid fa-bars" />
+                                        <field name="drag" widget="handle" string="Sequence"/>
+                                        <field name="name" string="Task Name"/>
+                                        <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
+                                        <field name="state" widget="selection" string="Status"/>
+                                        <field name="completion_date" widget="daterange" string="Due Date"/>
+                                        <button type="object" name="action_open_activity_tree" icon="fa-list" string="View Details"/>
                                     </tree>
                                 </field>
                             </page>
                         </notebook>
                     </sheet>
                     <div class="oe_chatter">
-                        <field name="message_follower_ids"
-                               widget="mail_followers" />
-                        <field name="message_ids"
-                               widget="mail_thread" />
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="message_ids" widget="mail_thread"/>
                     </div>
                 </form>
             </field>
@@ -67,78 +50,81 @@
             <field name="name">task.board.dynamic.fields.form</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
-                <form string="Agregar Campo Dinámico">
+                <form string="Add Dynamic Field">
                     <sheet>
                         <group>
                             <field name="name" 
-                                   string="Nombre de Tarea" 
+                                   string="Task Name" 
                                    attrs="{'invisible': [('apply_to_specific_task','=',False)]}"
-                                   help="Seleccione la tarea específica para este campo"/>
+                                   help="Select specific task for this field"/>
 
                             <field name="apply_to_specific_task" 
-                                   string="Aplicar a tarea específica" 
-                                   widget="boolean_checkbox"/>
+                                   string="Apply to specific task" 
+                                   widget="boolean"/>
 
                             <field name="dynamic_field_name" 
-                                   string="Nombre Técnico" 
+                                   string="Technical Name" 
                                    required="1"
-                                   help="Nombre interno del campo (ej: x_prioridad)"/>
+                                   help="Internal field name (e.g. x_priority)"/>
                         
                             <field name="dynamic_field_label" 
-                                   string="Etiqueta Visible" 
+                                   string="Display Label" 
                                    required="1"
-                                   help="Texto que verán los usuarios"/>
+                                   help="Label visible to users"/>
                         
                             <field name="dynamic_field_type" 
-                                   string="Tipo de Campo" 
+                                   string="Field Type" 
                                    required="1"
                                    widget="radio"
                                    options="{'horizontal': true}"/>
                         
                             <field name="selection_options" 
-                                   string="Opciones (Formato clave:valor)"
+                                   string="Options (key:value format)"
                                    attrs="{'required': [('dynamic_field_type','=','selection')], 
                                           'invisible': [('dynamic_field_type','!=','selection')]}"
-                                   help="Una opción por línea. Ejemplo:\nalto:Alta Prioridad\nmedio:Prioridad Media\nbajo:Prioridad Baja"/>
+                                   help="One option per line. Example:\nhigh:High Priority\nmedium:Medium Priority\nlow:Low Priority"/>
                         </group>
                     </sheet>
                     <footer>
                         <button name="action_create_dynamic_field" 
-                                string="Crear Campo" 
+                                string="Create Field" 
                                 type="object" 
-                                class="oe_highlight"/>
-                        <button string="Cancelar" 
+                                class="btn-primary"/>
+                        <button string="Cancel" 
                                 special="cancel" 
-                                class="oe_link"/>
+                                class="btn-secondary"/>
                     </footer>
                 </form>
             </field>
         </record>
  
+        <!-- Vista de árbol para subtareas -->
         <record id="view_subtask_tree" model="ir.ui.view">
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree string="Subtareas" 
+                <tree string="Subtasks" 
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
-                    <field name="sequence" widget="handle"/>
-                    <field name="name" string="Nombre"/>
-                    <field name="person" widget="many2one_avatar_user" string="Asignado"/>
-                    <field name="state" widget="selection" string="Estado"/>
-                    <field name="completion_date" widget="daterange" string="Fecha Límite"/>
-                    <button name="action_open_activity_tree" type="object" class="btn btn-link" icon="fa-eye" string=""/>
+                    <field name="sequence" widget="handle" string="Seq"/>
+                    <field name="name" string="Task Name"/>
+                    <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
+                    <field name="state" widget="selection" string="Status"/>
+                    <field name="completion_date" widget="daterange" string="Due Date"/>
+                    <button name="action_open_activity_tree" type="object" icon="fa-list" string="View"/>
                 </tree>
             </field>
         </record>
-        
+        <!-- Vista Kanban mejorada -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
+            <field name="priority">10</field>
             <field name="arch" type="xml">
-                <kanban create="false" edit="true" default_group_by="show_subtasks" class="o_kanban_full_width">
+                <kanban class="o_kanban_dashboard" sample="true">
+                    <field name="id"/>
                     <field name="name"/>
                     <field name="person"/>
                     <field name="state"/>
@@ -146,61 +132,39 @@
                     <field name="completed_subtasks"/>
                     <field name="total_subtasks"/>
                     <field name="completion_date"/>
-                    <field name="subtask_ids"/>
                     <field name="show_subtasks"/>
                     <templates>
-                        <t t-name="kanban-box" class="o_kanban_full_width">
-                            <div class="o_kanban_record oe_kanban_global_click" style="width: 100%; background: transparent; box-shadow: none;">
-                                <div class="kanban-table-container">
-                                    <strong style="margin-bottom: 8px; display: block;">
-                                        <field name="name" />
-                                    </strong>
-                                    <table class="table table-sm mt-2" style="width: 100%; margin: 0 auto; border: 1px solid #dee2e6; background: transparent;">
+                        <t t-name="kanban-box">
+                            <div class="oe_kanban_global_click">
+                                <div class="o_kanban_record">
+                                    <div class="kanban_header">
+                                        <strong><field name="name"/></strong>
+                                    </div>
+                                    <table class="kanban_table" t-att-id="'record.id'">
                                         <thead>
-                                            <tr> 
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Responsable</th>
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Estado</th>
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Progreso</th>
-                                                <th style="border: 1px solid #dee2e6; background: #f8f9fa;">Fecha</th>
-                                                <th style="border: 1px solid #dee2e6;">
-                                                    <div class="mt-2">
-                                                        <button 
-                                                        type="object" 
-                                                        name="action_view_subtasks" 
-                                                        icon="fa-eye" 
-                                                        aria-label="Ver Subtareas"/>
-
-                                                        <button name="action_open_dynamic_field_creator" 
-                                                                type="object"
-                                                                >
-                                                            <i class="fa fa-plus"/>
-                                                        </button>
-
-                                                        <button name="action_remove_dynamic_field" 
-                                                                type="object">
-                                                            <i class="fa fa-trash"/>
-                                                        </button>
-                                                        
-                                                    </div>
-                                                </th>
+                                            <tr>
+                                                <th>Assigned To</th>
+                                                <th>Status</th>
+                                                <th>Progress</th>
+                                                <th>Due Date</th>
+                                                <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <field name="person" widget="many2one_avatar_user"/>
+                                                <td><field name="person" widget="many2one_avatar_user"/></td>
+                                                <td><field name="state" widget="badge"/></td>
+                                                <td>
+                                                    <field name="progress" widget="progressbar" options="{'editable': false, 'input_type': 'number'}"/>
+                                                    <small><field name="completed_subtasks"/>/<field name="total_subtasks"/></small>
                                                 </td>
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <field name="state" widget="badge"/>
-                                                </td>
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <field name="progress" widget="progressbar" options="{'max_value': 100, 'height': '10px'}"/>
-                                                    <small>
-                                                        <field name="completed_subtasks"/>/<field name="total_subtasks"/>
-                                                    </small>
-                                                </td>
-                                                <td style="border: 1px solid #dee2e6;">
-                                                    <field name="completion_date" widget="daterange"/>
+                                                <td><field name="completion_date" widget="date"/></td>
+                                                <td>
+                                                    <div class="kanban_actions">
+                                                        <button type="object" name="action_view_subtasks" icon="fa-eye" class="btn-sm"/>
+                                                        <button type="object" name="action_open_dynamic_field_creator" icon="fa-plus" class="btn-sm"/>
+                                                        <button type="object" name="action_remove_dynamic_field" icon="fa-trash" class="btn-sm"/>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -208,34 +172,24 @@
                                 </div>
                             </div>
                             <style>
-                                .o_kanban_full_width {
-                                    width: 400% !important;
-                                    padding: 0 15px !important;
-                                    background: transparent !important;
-                                }
-                                .o_kanban_full_width .o_kanban_record {
-                                    width: 400% !important;
-                                    margin: 8px 0 !important;
-                                    max-width: none;
-                                    padding: 10px;
-                                    background: transparent !important;
-                                    border: none !important;
-                                }
-                                .kanban-table-container {
+                                .o_kanban_dashboard .o_kanban_record {
                                     width: 100%;
-                                    padding: 0 10px;
+                                    min-width: 450px;
+                                    margin-bottom: 16px;
                                 }
-                                .o_kanban_full_width .table {
-                                    width: 100% !important;
-                                    margin: 0 auto !important;
-                                    background-color: transparent !important;
+                                .kanban_table {
+                                    width: 100%;
+                                    border-collapse: collapse;
                                 }
-                                .o_kanban_group {
-                                    width: 100% !important;
-                                    background: transparent !important;
+                                .kanban_table th, .kanban_table td {
+                                    padding: 8px;
+                                    border: 1px solid #dee2e6;
                                 }
-                                .o_kanban_record:after {
-                                    display: none !important;
+                                .kanban_table th {
+                                    background-color: #f8f9fa;
+                                }
+                                .kanban_actions button {
+                                    margin: 0 2px;
                                 }
                             </style>
                         </t>
@@ -244,16 +198,15 @@
             </field>
         </record>
 
-        <!-- Acciones -->
-        <record id="task_planner.activity_tasks_action"
-                model="ir.actions.act_window">
+        <!-- Acción de ventana -->
+        <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
             <field name="name">Tasks Board</field>
             <field name="res_model">task.board</field>
             <field name="view_mode">kanban,form</field>
-            <field name="view_id"
-                   ref="activity_planner_task_view_kanban" />
+            <field name="view_id" ref="activity_planner_task_view_kanban"/>
             <field name="domain">[('department_id', '=', active_id)]</field>
             <field name="target">current</field>
+            <field name="context">{'default_department_id': active_id}</field>
         </record>
     </data>
 </odoo>

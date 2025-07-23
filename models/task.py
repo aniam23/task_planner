@@ -1,42 +1,28 @@
-from odoo import models, api, fields
-from odoo.exceptions import ValidationError
-from .boards import STATES
-from odoo.models import BaseModel
-import re
-import json
-import traceback
-from xml.etree import ElementTree as ET
-import logging
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError, UserError
 from lxml import etree
+import json
+import re
+import logging
+import time
+import uuid
+from psycopg2 import OperationalError, InternalError
 _logger = logging.getLogger(__name__)
 
 class TaskBoard(models.Model):
     _name = 'task.board'
-    _description = 'Activity Planner Task'
-    _inherit = ['mail.thread']
-    completion_date = fields.Datetime(string="Timeline")
-    department_id = fields.Many2one(
-        'boards.planner', 
-        string="Department", 
-        ondelete='cascade',
-    )
+    _description = 'Task Board'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _rec_name = 'name'
 
-    apply_to_specific_task = fields.Boolean(
-        string="Aplicar a tarea específica",
-        help="Si está marcado, el campo dinámico se aplicará solo a la tarea seleccionada"
-    )
+    # --------------------------------------------
+    # BASIC FIELDS
+    # --------------------------------------------
     
-    dynamic_field_list = fields.Many2many(
-    'boards.planner',
-    string='Campos Dinámicos',
-    compute='_compute_dynamic_fields',
-    store=False
-    )
-
+    name = fields.Char(string='Task Name', required=True, tracking=True)
     sequence = fields.Integer(string='Sequence', default=10)
-    drag = fields.Integer()
-    files = fields.Many2many('ir.attachment', string="Files")
-    name = fields.Char(string="Task", required=True )
+    completion_date = fields.Datetime(string='Due Date')
+    department_id = fields.Many2one('boards.planner', string='Department', ondelete='cascade')
     person = fields.Many2one(
         'hr.employee',
         string='Assigned To',
@@ -44,1082 +30,55 @@ class TaskBoard(models.Model):
         required=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
-
-    STATES = [
-    ('new', 'New'),
-    ('in_progress', 'In Progress'),
-    ('done', 'Done'),
-    ('stuck', 'Stuck'),
-    ('view_subtasks', 'View Subtasks')  
-    ]
-
-    color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
-    state = fields.Selection(STATES, default="new", string="State")
-    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
-    task_ids = fields.One2many('task.board', 'department_id', invisible=1, string="Tasks")
-    subtasks_count= fields.Integer(
-        string="Subtask Count",
-        compute='_compute_subtask_count',
-        store=True,
-        default=0  # Añadir valor por defecto
-    )
-
     allowed_member_ids = fields.Many2many(
         'hr.employee',
         compute='_compute_allowed_members',
         string='Allowed Members'
     )
-
-    completed_subtasks = fields.Integer(
-        string="Completed Subtasks",
-        compute='_compute_progress',
-        store=True,
-        default=0  # Añadir valor por defecto
-    )
+    state = fields.Selection([
+        ('new', 'New'),
+        ('in_progress', 'In Progress'),
+        ('done', 'Done'),
+        ('stuck', 'Stuck'),
+        ('view_subtasks', 'View Subtasks')
+    ], string='Status', default='new', tracking=True)
+    color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
+    files = fields.Many2many('ir.attachment', string='Attachments')
+    show_subtasks = fields.Boolean(string='Show Subtasks')
     
-    total_subtasks = fields.Integer(
-        string="Total Subtasks",
-        compute='_compute_progress',
-        store=True,
-        default=0  # Añadir valor por defecto
-    )
-
-    progress = fields.Float(
-    string="Progress", 
-    compute='_compute_progress', 
-    store=True,
-    group_operator="avg",
-    default=0.0
-    )
-
-    show_subtasks = fields.Boolean(string="Show Subtasks")
-    parent_id = fields.Many2one('task.board', 'Parent Task', index=True, ondelete='cascade')
-    child_ids = fields.One2many('task.board', 'parent_id', 'Sub-tasks')
-    selection_options = fields.Text(
-    string="Opciones de Selección",
-    help="Ingrese opciones en formato clave:valor, una por línea. Ejemplo:\nopcion1:Opción 1\nopcion2:Opción 2"
-    )
-
+    # --------------------------------------------
+    # SUBTASK RELATED FIELDS
+    # --------------------------------------------
+    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
+    subtasks_count = fields.Integer(string='Subtask Count', compute='_compute_progress', store=True)
+    completed_subtasks = fields.Integer(string='Completed Subtasks', compute='_compute_progress', store=True)
+    total_subtasks = fields.Integer(string='Total Subtasks', compute='_compute_progress', store=True)
+    progress = fields.Float(string='Progress', compute='_compute_progress', store=True, group_operator="avg")
+    
+    # --------------------------------------------
+    # DYNAMIC FIELDS CONFIGURATION
+    # --------------------------------------------
+    apply_to_specific_task = fields.Boolean(string='Apply to Specific Task')
+    dynamic_field_name = fields.Char(string='Technical Name')
+    dynamic_field_label = fields.Char(string='Display Label')
     dynamic_field_type = fields.Selection([
-        ('char', 'Texto'),
-        ('integer', 'Número Entero'),
-        ('float', 'Decimal'),
-        ('boolean', 'Booleano'),
-        ('selection', 'Selección'),
-        ('date', 'Fecha'),
-        ('datetime', 'Fecha/Hora'),
-        ('text', 'Texto Largo')],
-        string='Tipo de Campo')
-    
-    dynamic_field_name = fields.Char(string='Nombre Técnico')
-    dynamic_field_label = fields.Char(string='Etiqueta')
-    dynamic_fields_data = fields.Text(string='Campos Dinámicos')
-    dynamic_field_names = fields.Text(
-    string="Campos Dinámicos",
-    compute='_compute_dynamic_fields',
-    store=False
-    )
-
-    dynamic_field_ids = fields.One2many(
-    'ir.model.fields', 
-    compute='_compute_dynamic_fields',
-    string="Campos Dinámicos"
-    )
-      
-    @api.model
-    def create(self, vals):
-        task = super(TaskBoard, self).create(vals)
-        if self.env.context.get('kanban_auto_refresh'):
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'reload',
-            }
-        return task
-
-    def _compute_dynamic_fields(self):
-        for record in self:
-            # Obtener todos los campos dinámicos (que empiezan con x_)
-            dynamic_fields = self.env['ir.model.fields'].search([
-                ('model', '=', self._name),
-                ('name', 'like', 'x_%'),
-                ('state', '=', 'manual')
-            ])
-            record.dynamic_field_ids = dynamic_fields
-
-    def action_toggle_subtasks(self):
-        for task in self:
-            task.show_subtasks = not task.show_subtasks
-        return True
-
-    def action_view_subtasks(self):
-        self.ensure_one()
-        return {
-        'name': 'Subtareas',  
-        'type': 'ir.actions.act_window',
-        'res_model': 'subtask.board', 
-        'view_mode': 'tree,form',  
-        'views': [(False, 'tree'), (False, 'form')],  
-        'domain': [('task_id', '=', self.id)],  
-        'context': {'default_task_id': self.id},  
-        'target': 'new', 
-    }
-
-    def action_close_subtasks(self):
-        """
-        Acción para cerrar subtareas. Cambia el estado a 'draft' y recarga la vista.
-        """
-        self.write({'state': 'draft'})  # O el estado normal de tus tareas
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'reload',
-        }
-
-    #eliminar campos dinamicos 
-    def action_remove_dynamic_field(self):
-        """Elimina un campo dinámico asegurándose de borrar referencias y la columna DB."""
-        self.ensure_one()
-        if not self.dynamic_field_name:
-            raise ValidationError("Debe especificar el nombre del campo a eliminar")
-        # Generar nombre de campo válido 
-        field_name = self._generate_valid_field_name(self.dynamic_field_name)
-        try:
-            # Eliminar vistas que contengan el campo (con y sin prefijo 'x_')
-            field_names_to_search = [field_name, field_name.lstrip('x_')]
-            for fname in field_names_to_search:
-                views = self.env['ir.ui.view'].search([('arch_db', 'ilike', fname)])
-                for view in views:
-                    if fname in (view.arch_db or ''):
-                        _logger.info(f"Eliminando vista {view.name} que contiene campo {fname}")
-                        view.unlink()
-
-            # Eliminar campo en ir.model.fields (manejo protegido)
-            field = self.env['ir.model.fields'].search([
-                ('model', '=', self._name),
-                ('name', '=', field_name)
-            ], limit=2)
-            
-            if field:
-                try:
-                    field.unlink()
-                except Exception as e:
-                    _logger.warning(f"Eliminación normal falló para {field_name}: {e}")
-                    # Método forzado si falla
-                    self._force_remove_field(field_name)
-            # return {
-            #     'type': 'ir.actions.client',
-            #     'tag': 'reload',
-                
-            # }
-            #  Eliminar columna física en la tabla SQL (si existe)
-            self._remove_column_from_table(field_name)
-
-            # Verificar eliminación completa
-            self._verify_field_removal(field_name)
-
-            # # Recargar definición del modelo para que Odoo no intente acceder al campo eliminado
-            # self._reload_model_definition()
-
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'reload',
-            }
-
-        except Exception as e:
-            _logger.error(f"Error al eliminar campo dinámico: {e}")
-            raise ValidationError(f"Error al eliminar campo: {e}")
-
-    def _force_remove_field(self, field_name):
-        """Eliminación forzada para campos protegidos"""
-        self.env.cr.execute("""
-            UPDATE ir_model_fields SET state = 'manual'
-            WHERE model = %s AND name = %s
-        """, [self._name, field_name])
-        self.env.cr.execute("""
-            DELETE FROM ir_model_fields
-            WHERE model = %s AND name = %s
-        """, [self._name, field_name])
-        self.env.cr.execute("""
-            DELETE FROM ir_default
-            WHERE field_name = %s AND model = %s
-        """, [field_name, self._name])
-        self.env.cr.commit()
-
-    def _remove_column_from_table(self, field_name):
-        """Eliminar columna física si existe"""
-        # Validar nombre de campo para DB (usamos función de Odoo)
-        if not self._is_valid_db_identifier(field_name):
-            raise ValidationError("Nombre de campo inválido para PostgreSQL")
-
-        self.env.cr.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = %s AND column_name = %s
-        """, [self._table, field_name])
-
-        if self.env.cr.fetchone():
-            self.env.cr.execute(f'ALTER TABLE "{self._table}" DROP COLUMN IF EXISTS "{field_name}"')
-
-    def _verify_field_removal(self, field_name):
-        """Verificar que el campo fue eliminado"""
-        errors = []
-        if self.env['ir.model.fields'].search([('model', '=', self._name), ('name', '=', field_name)], limit=1):
-            errors.append("El campo sigue existiendo en ir.model.fields")
-        if field_name in self.env[self._name]._fields:
-            errors.append("El campo sigue en la definición del modelo")
-        self.env.cr.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = %s AND column_name = %s
-        """, [self._table, field_name])
-        if self.env.cr.fetchone():
-            errors.append("La columna sigue existiendo en la base de datos")
-
-        if errors:
-            raise ValidationError("El campo no se eliminó completamente:\n" + "\n".join(errors))
-
-    def _reload_model_definition(self):
-        """Recarga la definición del modelo para que no use el campo eliminado"""
-        # Usamos _setup_fields y _setup_complete para recargar
-        self.env[self._name]._setup_fields()
-        self.env[self._name]._setup_complete()
-        
-    #creacion de campos dinamicos
-    def action_create_dynamic_field(self):
-        """Versión final que maneja correctamente el checkbox y agrega como columnas"""
-        self.ensure_one()
-        
-        if not self.dynamic_field_name or not self.dynamic_field_type:
-            raise ValidationError("Debe especificar nombre y tipo de campo")
-    
-        # Generar nombre válido
-        field_name = self._generate_valid_field_name(self.dynamic_field_name)
-        
-        # Crear el campo en el modelo
-        self._create_field_in_model(field_name)
-        
-        # Actualizar vistas según el checkbox
-        if self.apply_to_specific_task:
-            self._update_kanban_view_for_task(field_name, self.id)
-        else:
-            self._update_kanban_view_globally(field_name)
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'reload',
-        }
-
-    def _update_kanban_view_globally(self, field_name):
-        """Actualiza vista kanban para todas las tareas"""
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
-        }
-
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-
-        arch = f"""
-        <data>
-            <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
-                <div class="oe_kanban_content" style="margin-top:8px">
-                    <field name="{field_name}" {'widget="'+field_attrs['widget']+'"' if 'widget' in field_attrs else ''}/>
-                </div>
-            </xpath>
-        </data>
-        """
-
-        self._update_view(
-            view_xml_id='task_planner.activity_planner_task_view_kanban',
-            view_type='kanban',
-            arch=arch,
-            view_name=f'{self._name}.kanban.global_inherit_{field_name}'
-        )
-
-    def _update_kanban_view_for_task(self, field_name, task_id):
-        """Versión corregida que funciona con todos los tipos de campos"""
-        self.ensure_one()
-
-        # Configuración del campo según su tipo
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
-        }
-
-        # Widget especial para ciertos tipos de campo
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-
-        # Generar el XML de forma segura
-        arch = f"""
-        <data>
-            <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
-                <t t-if="record.id == {task_id}">
-                    <div class="oe_kanban_content" style="margin-top:8px">
-                        <field name="{field_name}" {'widget="'+field_attrs['widget']+'"' if 'widget' in field_attrs else ''}/>
-                    </div>
-                </t>
-            </xpath>
-        </data>
-        """
-
-        self._update_view(
-            view_xml_id='task_planner.activity_planner_task_view_kanban',
-            view_type='kanban',
-            arch=arch,
-            view_name=f'{self._name}.kanban.task_{task_id}_inherit_{field_name}'
-        )
-
-   
-
-    def _update_view(self, view_xml_id, view_type, arch, view_name):
-        """Actualiza vista de manera genérica"""
-        try:
-            base_view = self.env.ref(view_xml_id)
-            inherit_view = self.env['ir.ui.view'].search([
-                ('name', '=', view_name),
-                ('model', '=', self._name)
-            ], limit=1)
-
-            if inherit_view:
-                inherit_view.write({'arch': arch})
-            else:
-                self.env['ir.ui.view'].create({
-                    'name': view_name,
-                    'type': view_type,
-                    'model': self._name,
-                    'inherit_id': base_view.id,
-                    'arch': arch,
-                    'active': True
-                })
-
-            self.env['ir.ui.view'].clear_caches()
-        except Exception as e:
-            _logger.error("Error updating view: %s", str(e))
-            raise ValidationError("Error al actualizar vista kanban")
-
-    def _safe_cache_cleanup(self):
-        """Método mejorado para limpiar caché"""
-        try:
-            # Limpiar caché de registros
-            self.env.registry.clear_cache()
-
-            # Limpiar caché de vistas
-            if hasattr(self.env['ir.ui.view'], 'clear_caches'):
-                self.env['ir.ui.view'].clear_caches()
-
-            # Recargar definiciones del modelo
-            if self._name in self.env.registry:
-                model = self.env.registry[self._name]
-                model._fields = {}
-                model._setup_fields()
-                model._setup_complete()
-
-        except Exception as e:
-            _logger.warning("Advertencia al limpiar caché: %s", str(e))
-
-    def _create_field_in_model_safe(self, field_name):
-        """Versión corregida que incluye el string del campo"""
-        try:
-            model = self.env['ir.model'].search([('model', '=', self._name)], limit=1)
-            if not model:
-                raise ValidationError(f"Modelo {self._name} no encontrado")
-
-            field_vals = {
-                'name': field_name,
-                'model_id': model.id,
-                'field_description': self.dynamic_field_label or field_name,  # Asegura que siempre tenga descripción
-                'ttype': self.dynamic_field_type,
-                'state': 'manual',
-                'required': False,
-                'readonly': False,
-                'index': False,
-            }
-
-            if self.dynamic_field_type == 'selection' and self.selection_options:
-                selection = []
-                for line in self.selection_options.split('\n'):
-                    if line.strip() and ':' in line:
-                        key, val = map(str.strip, line.split(':', 1))
-                        selection.append((key, val))
-                field_vals['selection'] = str(selection)
-
-            # Validación adicional para asegurar el string
-            if not field_vals.get('field_description'):
-                field_vals['field_description'] = field_name.replace('_', ' ').title()
-
-            self.env['ir.model.fields'].sudo().create(field_vals)
-            self._add_column_to_table(field_name)
-
-        except Exception as e:
-            _logger.error("Error creando campo: %s", str(e))
-            raise
-        
-    def _generate_valid_field_name(self, name):
-        """
-        Genera un nombre técnico válido para un campo de Odoo:
-        """
-        # Primero limpiamos el nombre
-        name = name.lower()
-        name = re.sub(r'\s+', '_', name)   
-        name = re.sub(r'[^a-z0-9_]', '', name) 
-        if not name.startswith('x_'):
-            name = f"x_{name}"
-        if len(name) > 2 and name[2].isdigit():
-            name = f"x_field_{name[2:]}"
-        return name
-        
-    def _update_views_completely(self, field_name):
-        """Método mejorado para actualizar todas las vistas necesarias"""
-        try:
-           
-            self._update_specific_view(
-                view_xml_id='task_planner.activity_planner_task_view_kanban',
-              view_type='kanban',
-                 field_name=field_name
-             )
-            # 2. Actualizar vista form
-            self._update_specific_view(
-                view_xml_id='task_planner.activity_planner_details_view_form',
-                view_type='form',
-                field_name=field_name
-            )
-            # 3. Actualizar vista kanban si existe
-            try:
-                self._update_specific_view(
-                    view_xml_id='task_planner.activity_planner_task_view_kanban',
-                    view_type='kanban',
-                    field_name=field_name
-                )
-            except:
-                _logger.warning("No se encontró vista kanban, omitiendo")
-            # 4. Forzar actualización del cache de vistas
-            self.env['ir.ui.view'].clear_caches()
-        except Exception as e:
-            _logger.error("Error actualizando vistas: %s", str(e))
-            raise
-
-    def _generate_complete_kanban_view(self, base_view, field_name):
-        """Regenera la vista kanban manteniendo todos los campos existentes"""
-        try:
-            # Parsear la vista existente
-            doc = etree.fromstring(base_view.arch)
-
-            # Encontrar la tabla y filas
-            table = doc.xpath("//table")[0]
-            header_row = table.xpath(".//tr[th]")[0]
-            data_rows = table.xpath(".//tr[td]")
-
-            # Buscar la posición después del campo "Fecha"
-            fecha_th = None
-            for idx, th in enumerate(header_row.xpath(".//th")):
-                if th.text and "fecha" in th.text.lower():
-                    fecha_th = (idx, th)
-                    break
-                
-            # Crear nuevo encabezado
-            new_th = etree.Element("th", style="border: 1px solid #dee2e6; background: #f8f9fa;")
-            new_th.text = self.dynamic_field_label or field_name.replace('_', ' ').title()
-
-            # Insertar después de "Fecha" o al final si no se encuentra
-            if fecha_th:
-                idx, th = fecha_th
-                th.addnext(new_th)
-            else:
-                header_row.append(new_th)
-
-            # Añadir celda de datos en cada fila
-            for row in data_rows:
-                new_td = etree.Element("td", style="border: 1px solid #dee2e6;")
-                field = etree.Element("field", name=field_name)
-
-                # Configurar widget según tipo
-                if self.dynamic_field_type == 'selection':
-                    field.set("widget", "selection")
-                elif self.dynamic_field_type in ['date', 'datetime']:
-                    field.set("widget", self.dynamic_field_type)
-
-                new_td.append(field)
-
-                # Insertar en la misma posición que el encabezado
-                if fecha_th and len(row.xpath(".//td")) > fecha_th[0]:
-                    target_td = row.xpath(".//td")[fecha_th[0]]
-                    target_td.addnext(new_td)
-                else:
-                    row.append(new_td)
-
-            return etree.tostring(doc, encoding='unicode')
-        except Exception as e:
-            _logger.error("Error generando vista kanban: %s", str(e))
-            raise ValidationError("Error al actualizar la vista kanban")
-
-    def _update_specific_view(self, view_xml_id, view_type, field_name):
-        """Actualiza la vista manteniendo todos los campos existentes"""
-        try:
-            base_view = self.env.ref(view_xml_id)
-            inherit_view_name = f"{self._name}.{view_type}.inherit.{field_name}"
-
-            # Buscar vista heredada existente para este campo
-            inherited_view = self.env['ir.ui.view'].search([
-                ('name', '=', inherit_view_name),
-                ('model', '=', self._name)
-            ], limit=1)
-
-            # Generar archivo XML según tipo de vista
-            if view_type == 'kanban':
-                arch = self._generate_complete_kanban_view(base_view, field_name)
-            else:
-                arch = self._generate_view_arch_with_field(
-                    base_view=base_view,
-                    view_type=view_type,
-                    field_name=field_name
-                )
-
-            if inherited_view:
-                # Actualizar vista existente
-                inherited_view.write({'arch': arch})
-            else:
-                # Crear nueva vista heredada
-                self.env['ir.ui.view'].create({
-                    'name': inherit_view_name,
-                    'type': view_type,
-                    'model': self._name,
-                    'inherit_id': base_view.id,
-                    'arch': arch,
-                    'active': True
-                })
-
-            # Limpiar caché
-            self.env['ir.ui.view'].clear_caches()
-
-        except Exception as e:
-            _logger.error("Error actualizando vista %s: %s", view_xml_id, str(e))
-            raise ValidationError(f"Error al actualizar vista {view_type}")
-
-    def _generate_view_arch_with_field(self, base_view, view_type, field_name):
-        """Genera XML para insertar el nuevo campo manteniendo los existentes"""
-        position_info = self._get_best_position_for_field(base_view, view_type)
-
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label or field_name.replace('_', ' ').title(),
-            'optional': 'show'
-        }
-        # Configurar widgets especiales
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-        return f"""
-        <data>
-            <xpath expr="{position_info['xpath']}" position="{position_info['position']}">
-                <field {' '.join([f'{k}="{v}"' for k, v in field_attrs.items()])}/>
-            </xpath>
-        </data>
-        """
-
-    def _get_best_position_for_field(self, base_view, view_type):
-        """Encuentra la mejor posición para insertar el nuevo campo"""
-        try:
-            doc = etree.fromstring(base_view.arch)
-            
-            if view_type == 'form':
-                # Intentar encontrar el campo "fecha" para insertar después
-                fecha_field = doc.xpath("//field[contains(translate(@name, 'FECH', 'fech'), 'fecha')]")
-                if fecha_field:
-                    return {
-                        'xpath': f"//field[@name='{fecha_field[0].get('name')}']",
-                        'position': 'after'
-                    }
-                
-                # Si no hay campo fecha, insertar después del último campo
-                last_field = doc.xpath("(//field[not(ancestor::field)])[last()]")
-                if last_field:
-                    return {
-                        'xpath': f"//field[@name='{last_field[0].get('name')}']",
-                        'position': 'after'
-                    }
-                
-                # Insertar en el sheet si no hay campos
-                sheet = doc.xpath("//sheet")[0] if doc.xpath("//sheet") else doc
-                return {
-                    'xpath': "//sheet" if doc.xpath("//sheet") else "/*",
-                    'position': 'inside'
-                }
-                  
-            elif view_type == 'tree':
-                # Buscar campo fecha para insertar después
-                fecha_field = doc.xpath("//field[contains(translate(@name, 'FECH', 'fech'), 'fecha')]")
-                if fecha_field:
-                    return {
-                        'xpath': f"//field[@name='{fecha_field[0].get('name')}']",
-                        'position': 'after'
-                    }
-                
-                # Insertar después del último campo visible
-                last_field = doc.xpath("(//field[not(@invisible)])[last()]") or doc.xpath("(//field)[last()]")
-                if last_field:
-                    return {
-                        'xpath': f"//field[@name='{last_field[0].get('name')}']",
-                        'position': 'after'
-                    }
-                
-            # Posición por defecto
-            return {
-                'xpath': "/*",
-                'position': 'inside'
-            }
-            
-        except Exception as e:
-            _logger.warning("Error analizando vista: %s", str(e))
-            return {
-                'xpath': "/*",
-                'position': 'inside'
-            }
-
-    
-
-    def _create_field_in_model(self, field_name):
-        """Crea el campo dinámico en el modelo (versión corregida)"""
-        if not self.dynamic_field_type:
-            raise ValidationError("Debe seleccionar un tipo de campo.")
-        # Mapeo de tipos de campo a configuraciones adicionales
-        field_type = self.dynamic_field_type
-        field_vals = {
-            'name': field_name,
-            'field_description': self.dynamic_field_label or field_name.replace('_', ' ').title(),
-            'ttype': field_type,
-            'state': 'manual',
-            'required': False,
-            'readonly': False,
-            'index': False,
-        }
-
-        # Manejar campos de selección
-        if field_type == 'selection':
-            if not self.selection_options:
-                raise ValidationError("Debe proporcionar opciones para el campo de selección.")
-
-            selection = []
-            for line in self.selection_options.split('\n'):
-                line = line.strip()
-                if line and ':' in line:
-                    key, val = map(str.strip, line.split(':', 1))
-                    selection.append((key, val))
-
-            if not selection:
-                raise ValidationError("Debe proporcionar al menos una opción válida en formato clave:valor")
-
-            field_vals['selection'] = str(selection)
-
-        # Buscar el modelo
-        model = self.env['ir.model'].search([('model', '=', self._name)], limit=1)
-        if not model:
-            raise ValidationError(f"Modelo {self._name} no encontrado")
-
-        field_vals['model_id'] = model.id
-
-        try:
-            # Crear el campo técnico
-            self.env['ir.model.fields'].sudo().create(field_vals)
-
-            # Añadir la columna a la tabla
-            self._add_column_to_table(field_name)
-
-            # Limpiar caché para que el campo esté disponible inmediatamente
-            self._safe_cache_cleanup()
-
-        except Exception as e:
-            _logger.error("Error creando campo: %s", str(e))
-            raise ValidationError(f"Error al crear el campo: {str(e)}")
-
-    def is_dynamic_field_for_task(self, field_name):
-        """Verifica si un campo dinámico está asociado específicamente a esta tarea"""
-        self.ensure_one()
-
-        if not self.dynamic_fields_data:
-            return False
-
-        try:
-            dynamic_data = json.loads(self.dynamic_fields_data)
-            return field_name in dynamic_data
-        except (json.JSONDecodeError, TypeError):
-            _logger.warning("Error al parsear dynamic_fields_data en tarea %s", self.id)
-            return False
-    def _generate_view_arch_with_field(self, base_view, view_type, field_name):
-        """Genera el XML para la vista con el nuevo campo"""
-        # Determinar la mejor posición para insertar el campo
-        position_info = self._get_best_position_for_field(base_view, view_type)
-        if self.apply_to_specific_task and not self.is_dynamic_field_for_task(field_name):
-            return "<data/>" 
-        # Configurar atributos del campo
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label,
-            'optional': 'show'
-        }
-        # Añadir widgets especiales según el tipo de campo
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-        # Construir el XML completo
-        return f"""
-        <data>
-            <xpath expr="{position_info['xpath']}" position="{position_info['position']}">
-                <field {' '.join([f'{k}="{v}"' for k, v in field_attrs.items()])}/>
-            </xpath>
-        </data>
-        """
-  
-
-    def _format_field_attrs(self, attrs):
-        """Formatea atributos para XML de manera segura"""
-        safe_attrs = {}
-        for k, v in attrs.items():
-            if v is not None:
-                safe_attrs[k] = v
-        return ' '.join([f'{k}="{v}"' for k, v in safe_attrs.items()])
-
-    def _generate_safe_view_arch(self, view_type, field_name, base_view=None):
-        """
-        Genera XML seguro para la vista
-        Versión simplificada y unificada para todos los tipos de vista
-        """
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label or field_name.replace('_', ' ').title(),
-        }
-
-        # Configura widgets especiales según el tipo de campo
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-
-        # Estructura básica para vista kanban
-        if view_type == 'kanban':
-            return f"""
-            <data>
-                <xpath expr="//templates//div[hasclass('o_kanban_record')]//field[@name='display_name']" position="after">
-                    <div class="oe_kanban_content">
-                        <field {self._format_field_attrs(field_attrs)}/>
-                    </div>
-                </xpath>
-            </data>
-            """
-        # Estructura para vista form
-        elif view_type == 'form':
-            return f"""
-            <data>
-                <xpath expr="//sheet" position="inside">
-                    <group>
-                        <field {self._format_field_attrs(field_attrs)}/>
-                    </group>
-                </xpath>
-            </data>
-            """
-        # Estructura para vista tree
-        elif view_type == 'tree':
-            return f"""
-            <data>
-                <xpath expr="//tree" position="inside">
-                    <field {self._format_field_attrs(field_attrs)}/>
-                </xpath>
-            </data>
-            """
-        # Estructura por defecto
-        else:
-            return f"""
-            <data>
-                <field {self._format_field_attrs(field_attrs)} position="attributes">
-                    <attribute name="invisible">0</attribute>
-                </field>
-            </data>
-            """
-
-    def _format_field_attrs(self, attrs):
-        """Formatea atributos para XML de manera segura"""
-        safe_attrs = {}
-        for k, v in attrs.items():
-            if v is not None:
-                safe_attrs[k] = v
-        return ' '.join([f'{k}="{v}"' for k, v in safe_attrs.items()])
-
-    def _update_specific_view(self, view_xml_id, view_type, field_name):
-        """Versión corregida para actualizar vistas"""
-        try:
-            base_view = self.env.ref(view_xml_id)
-            if not base_view:
-                _logger.warning(f"Vista {view_xml_id} no encontrada")
-                return False
-
-            # Generar archivo XML según tipo de vista
-            if view_type == 'kanban':
-                arch = self._generate_kanban_view_arch(field_name)
-            else:
-                arch = self._generate_view_arch_with_field(
-                    base_view=base_view,
-                    view_type=view_type,
-                    field_name=field_name
-                )
-
-            inherit_view_name = f"{self._name}.{view_type}.inherit.{field_name}"
-            inherit_view = self.env['ir.ui.view'].search([
-                ('name', '=', inherit_view_name),
-                ('model', '=', self._name)
-            ], limit=1)
-
-            if inherit_view:
-                inherit_view.write({'arch': arch})
-            else:
-                self.env['ir.ui.view'].create({
-                    'name': inherit_view_name,
-                    'type': view_type,
-                    'model': self._name,
-                    'inherit_id': base_view.id,
-                    'arch': arch,
-                    'active': True
-                })
-
-            self.env['ir.ui.view'].clear_caches()
-            return True
-
-        except Exception as e:
-            _logger.error(f"Error actualizando vista {view_xml_id}: {str(e)}")
-            raise ValidationError(f"Error al actualizar vista {view_type}: {str(e)}")
-
-    def _generate_kanban_view_arch(self, field_name, specific_task=False, task_id=None):
-        """Genera XML para la vista kanban como columnas"""
-        field_attrs = {
-            'name': field_name,
-            'string': self.dynamic_field_label or field_name.replace('_', ' ').title()
-        }
-
-        # Configurar widget según tipo de campo
-        if self.dynamic_field_type == 'selection':
-            field_attrs['widget'] = 'selection'
-        elif self.dynamic_field_type in ['date', 'datetime']:
-            field_attrs['widget'] = self.dynamic_field_type
-
-        if specific_task and task_id:
-            # Versión para tarea específica
-            return f"""
-            <data>
-                <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
-                    <div class="oe_kanban_global_click">
-                        <div class="row" t-if="record.id == {task_id}">
-                            <div class="col-3">
-                                <field {self._format_field_attrs(field_attrs)}/>
-                            </div>
-                        </div>
-                    </div>
-                </xpath>
-            </data>
-            """
-        else:
-            # Versión global
-            return f"""
-            <data>
-                <xpath expr="//div[hasclass('o_kanban_record')]" position="inside">
-                    <div class="oe_kanban_global_click">
-                        <div class="row">
-                            <div class="col-3">
-                                <field {self._format_field_attrs(field_attrs)}/>
-                            </div>
-                        </div>
-                    </div>
-                </xpath>
-            </data>
-            """
-    def _update_kanban_view(self, field_name):
-        """Actualiza la vista kanban de manera segura"""
-        try:
-            kanban_arch = self._generate_kanban_view_arch(field_name)
-            base_view = self.env.ref('task_planner.activity_planner_task_view_kanban')
-
-            inherit_view = self.env['ir.ui.view'].search([
-                ('name', '=', f'{self._name}.kanban.inherit.{field_name}'),
-                ('model', '=', self._name)
-            ], limit=1)
-
-            if inherit_view:
-                inherit_view.write({'arch': kanban_arch})
-            else:
-                self.env['ir.ui.view'].create({
-                    'name': f'{self._name}.kanban.inherit.{field_name}',
-                    'type': 'kanban',
-                    'model': self._name,
-                    'inherit_id': base_view.id,
-                    'arch': kanban_arch,
-                    'active': True
-                })
-
-            self.env['ir.ui.view'].clear_caches()
-        except Exception as e:
-            _logger.error("Error updating kanban view: %s", str(e))
-            raise ValidationError("Error al actualizar vista kanban")
-
-    def _get_best_position_for_field(self, base_view, view_type):
-        """Determina la mejor posición para insertar el campo en la vista"""
-        try:
-            doc = etree.fromstring(base_view.arch)
-            if view_type == 'form':
-                # Intentar insertar después del último campo
-                last_field = doc.xpath("(//field[not(ancestor::field)])[last()]")
-                if last_field:
-                    return {
-                        'xpath': f"//field[@name='{last_field[0].get('name')}']",
-                        'position': 'after'
-                    }
-                # Si no hay campos, insertar en el sheet principal
-                sheet = doc.xpath("//sheet")[0] if doc.xpath("//sheet") else None
-                if sheet:
-                    return {
-                        'xpath': f"//sheet[@name='{sheet.get('name', '')}']",
-                        'position': 'inside'
-                    }
-            elif view_type == 'tree':
-                # Insertar después del último campo visible
-                last_field = doc.xpath("(//field[not(@invisible)])[last()]") or doc.xpath("(//field)[last()]")
-                if last_field:
-                    return {
-                        'xpath': f"//field[@name='{last_field[0].get('name')}']",
-                        'position': 'after'
-                    }
-            # Posición por defecto si no se encuentra un buen lugar
-            return {
-                'xpath': "/*",
-                'position': 'inside'
-            } 
-        except Exception as e:
-            _logger.warning("Error analizando vista: %s", str(e))
-            return {
-                'xpath': "/*",
-                'position': 'inside'
-            }
-
-    def _create_field_in_model(self, field_name):
-        """Crea el campo dinámico en el modelo"""
-        field_type = self.dynamic_field_type
-        if not field_type:
-            raise ValidationError("Debe seleccionar un tipo de campo.")
-        # Validar opciones si es un campo de selección
-        selection = False
-        if field_type == 'selection':
-            selection = []
-            if not self.selection_options:
-                raise ValidationError("Debe proporcionar opciones para el campo de selección.")
-            for line in self.selection_options.strip().splitlines():
-                if ':' not in line:
-                    raise ValidationError("Cada opción debe tener el formato clave:valor.")
-                key, val = line.split(':', 1)
-                selection.append((key.strip(), val.strip()))
-            # Guardar en JSON para usarlo luego si se requiere
-            self.dynamic_fields_data = json.dumps(selection)
-        model = self.env['ir.model'].search([('model', '=', self._name)], limit=1)
-        if not model:
-            raise ValidationError(f"No se encontró el modelo '{self._name}'.")
-        field_values = {
-            'name': field_name,
-            'model_id': model.id,
-            'field_description': self.dynamic_field_label or field_name,
-            'ttype': field_type,
-            'state': 'manual',  
-            'required': False,
-            'readonly': False,
-            'index': False,
-        }
-        if selection:
-            field_values['selection'] = json.dumps(selection)
-        # Crear el campo en ir.model.fields
-        self.env['ir.model.fields'].create(field_values)
-            # Manejar campos de selección
-        if self.dynamic_field_type == 'selection' and self.selection_options:
-                selection = []
-                for line in self.selection_options.split('\n'):
-                    if line.strip() and ':' in line:
-                        key, val = map(str.strip, line.split(':', 1))
-                        selection.append((key, val))
-                field_vals['selection'] = str(selection)
-            # Crear el campo técnico
-                self.env['ir.model.fields'].sudo().create(field_vals)
-            # Añadir la columna a la tabla
-                self._add_column_to_table(field_name)
-            # Limpiar caché para que el campo esté disponible inmediatamente
-                self.env.registry.clear_cache()
-
-    def _reload_model_definition(self):
-        """Recarga la definición del modelo actual desde la base de datos."""
-        if isinstance(self.env[self._name], BaseModel):
-           self.env[self._name]._setup_fields()
-           self.env[self._name]._setup_complete()
-
-    def _add_column_to_table(self, field_name):
-        """Añade la columna a la tabla en la base de datos de manera segura"""
-        # Mapeo de tipos de campo de Odoo a tipos de PostgreSQL
-        type_mapping = {
-            'char': 'VARCHAR(255)',
-            'integer': 'INTEGER',
-            'float': 'NUMERIC',
-            'boolean': 'BOOLEAN',
-            'selection': 'VARCHAR(255)',
-            'date': 'DATE',
-            'datetime': 'TIMESTAMP',
-            'text': 'TEXT'
-        }
-
-        column_type = type_mapping.get(self.dynamic_field_type, 'VARCHAR(255)')
-
-        try:
-            # Verificar si la columna ya existe
-            self.env.cr.execute(f"""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = '{self._table}' 
-                AND column_name = '{field_name}'
-            """)
-
-            if not self.env.cr.fetchone():
-                # La columna no existe, crearla
-                query = f"""
-                ALTER TABLE {self._table} 
-                ADD COLUMN {field_name} {column_type}
-                """
-                self.env.cr.execute(query)
-
-                # Hacer commit explícito para la operación DDL
-                self.env.cr.commit()
-
-        except Exception as e:
-            _logger.error("Error añadiendo columna: %s", str(e))
-            self.env.cr.rollback()
-            raise ValidationError(f"Error técnico al crear el campo en la base de datos: {str(e)}")
-
-    def action_open_dynamic_field_creator(self):
-        """Abrir diálogo para crear campo dinámico"""
-        self.ensure_one()
-        return {
-            'name': ('Agregar Campo Dinámico'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'task.board',
-            'res_id': self.id,
-            'view_mode': 'form',
-            'view_id': self.env.ref('task_planner.view_task_board_dynamic_fields_form').id,
-            'target': 'new',
-        }
-
-    def action_add_subtask (self):
-        return {
-        'type': 'ir.actions.act_window',
-        'name': 'Subtareas',
-        'res_model': 'subtask.board',
-        'view_mode': 'tree',
-        'domain': [('id', 'in', self.subtask_ids.ids)],
-        'target': 'new',
-    }
-    
+        ('char', 'Text'),
+        ('text', 'Long Text'),
+        ('html', 'HTML'),
+        ('integer', 'Integer'),
+        ('float', 'Float'),
+        ('boolean', 'Boolean'),
+        ('selection', 'Selection'),
+        ('date', 'Date'),
+        ('datetime', 'Datetime')
+    ], string='Field Type', default='char')
+    selection_options = fields.Text(string='Selection Options')
+    dynamic_fields_data = fields.Text(string='Dynamic Fields Data')
+    dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
+
+    # --------------------------------------------
+    # COMPUTE METHODS
+    # --------------------------------------------
     @api.depends('subtask_ids.state')
     def _compute_progress(self):
         for task in self:
@@ -1128,69 +87,792 @@ class TaskBoard(models.Model):
             done = len(subtasks.filtered(lambda x: x.state == 'done'))
             task.total_subtasks = total
             task.completed_subtasks = done
-            # Calcular progreso (0-100)
             progress = total and (done * 100.0 / total) or 0
             task.progress = progress
-            # Cambiar estado automáticamente cuando progreso es 100%
+            
             if progress >= 100 and task.state != 'done':
                 task.state = 'done'
             elif progress > 0 and progress < 100 and task.state != 'in_progress':
                 task.state = 'in_progress'
-            
+    
     @api.depends('state')
     def _compute_color_from_state(self):
         for task in self:
             if task.state == 'new':
-                task.color = 2  # Amarillo
+                task.color = 2  # Yellow
             elif task.state == 'in_progress':
-                task.color = 5  # Naranja
+                task.color = 5  # Orange
             elif task.state == 'done':
-                task.color = 10  # Verde
+                task.color = 10  # Green
             elif task.state == 'stuck':
-                task.color = 1  # Rojo
+                task.color = 1  # Red
             elif task.state == 'view_subtasks':
-                task.color = 4   
+                task.color = 4  # Light blue
             else:
-                task.color = 0  # Por defecto
-
+                task.color = 0  # Default
+    
     @api.depends('department_id')
     def _compute_allowed_members(self):
         for task in self:
             task.allowed_member_ids = task.department_id.member_ids
 
-    @api.constrains('person', 'department_id')
-    def _check_person_in_department(self):
+    @api.depends('dynamic_fields_data')
+    def _compute_dynamic_fields(self):
         for task in self:
-            if task.department_id and task.person not in task.department_id.member_ids:
-                raise ValidationError(
-                    "El empleado asignado no pertenece al departamento seleccionado. "
-                    "Miembros válidos: %s" % 
-                    ", ".join(task.department_id.member_ids.mapped('name'))
-                )
+            try:
+                dynamic_data = json.loads(task.dynamic_fields_data or '{}')
+                field_info = {
+                    'fields': [],
+                    'field_attrs': {}
+                }
+                
+                for field_name, field_config in dynamic_data.items():
+                    if isinstance(field_config, dict):
+                        field_info['fields'].append(field_name)
+                        field_info['field_attrs'][field_name] = {
+                            'type': field_config.get('type', 'char'),
+                            'string': field_config.get('label', field_name),
+                            'widget': field_config.get('widget', False),
+                            'options': field_config.get('options', False)
+                        }
+                
+                task.dynamic_field_list = json.dumps(field_info)
+            except Exception as e:
+                _logger.error("Error computing dynamic fields: %s", str(e))
+                task.dynamic_field_list = json.dumps({
+                    'fields': [],
+                    'field_attrs': {}
+                })
 
-    @api.model
-    def create(self, vals):
-        task = super().create(vals)
-        task._check_person_in_department()
-        return task
+    # --------------------------------------------
+    # DATABASE SCHEMA METHODS
+    # --------------------------------------------
+    def _repair_database_schema(self):
+        """Repara automáticamente el esquema de la base de datos"""
+        try:
+            # Verificar y crear columnas faltantes
+            self._create_column_if_missing('ir_model', 'varchar')
+            self._create_column_if_missing('ir_model_fields', 'varchar')
+            
+            # Actualizar valores si es necesario
+            self._update_missing_keys()
+            
+            return True
+        except Exception as e:
+            _logger.error("Error repairing schema: %s", str(e))
+            return False
 
-    def write(self, vals):
-        res = super().write(vals)
-        self._check_person_in_department()
-        return res
+    def _create_column_if_missing(self, table_name, column_name, column_type):
+        """Crea una columna si no existe"""
+        self.env.cr.execute(f"""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = '{table_name}' 
+            AND column_name = '{column_name}'
+        """)
+        if not self.env.cr.fetchone():
+            try:
+                self.env.cr.execute(f"""
+                    ALTER TABLE "{table_name}" 
+                    ADD COLUMN "{column_name}" {column_type}
+                """)
+                self.env.cr.commit()
+                _logger.info(f"Created column {column_name} in {table_name}")
+            except Exception as e:
+                _logger.error(f"Failed to create column {column_name}: {str(e)}")
+                self.env.cr.rollback()
 
+    
+
+    # --------------------------------------------
+    # DYNAMIC FIELD METHODS
+    # --------------------------------------------
+    def action_create_dynamic_field(self):
+        """Método principal con manejo de errores mejorado"""
+        self.ensure_one()
+
+        if not self.dynamic_field_name or not self.dynamic_field_type:
+            raise UserError("Nombre y tipo de campo son requeridos")
+
+        field_name = self._generate_valid_field_name(self.dynamic_field_name)
+
+        try:
+            # 1. Crear el campo en el modelo
+            self._create_field_in_model(field_name)
+
+            # 2. Actualizar vistas
+            task_id = self.id if self.apply_to_specific_task else None
+            self._update_kanban_view(field_name, task_id)
+            self._update_form_view(field_name, task_id)
+
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'reload',
+                'params': {'wait': True}  # Esperar recarga completa
+            }
+
+        except Exception as e:
+            self._remove_field_artifacts(field_name)
+            raise UserError(f"Error creando campo: {str(e)}")
+
+    def _verify_field_in_kanban(self, field_name):
+        """Verifica que el campo está en la vista kanban"""
+        try:
+            # Buscar la vista heredada
+            view = self.env['ir.ui.view'].search([
+                ('name', 'like', f'{self._name}.kanban.dynamic.{field_name}'),
+                ('model', '=', self._name)
+            ], limit=1)
+
+            if not view:
+                _logger.error("No se encontró la vista heredada")
+                return False
+
+            # Verificar que el campo está en el XML
+            if field_name not in (view.arch_db or ''):
+                _logger.error("El campo no está en el archivo XML de la vista")
+                return False
+
+            return True
+        except Exception as e:
+            _logger.error(f"Error en verificación: {str(e)}")
+            return False
+
+    def _create_field_in_model(self, field_name):
+        """Robust field creation with existence checking"""
+        try:
+            # Check if field already exists
+            existing_field = self.env['ir.model.fields'].sudo().search([
+                ('model', '=', self._name),
+                ('name', '=', field_name)
+            ], limit=1)
+
+            if existing_field:
+                # Field exists - update it instead of creating new
+                field_vals = self._prepare_field_vals(field_name)
+                existing_field.write(field_vals)
+                _logger.info("Updated existing field %s", field_name)
+                return existing_field
+
+            # Field doesn't exist - create new
+            field_vals = self._prepare_field_vals(field_name)
+            field = self.env['ir.model.fields'].sudo().create(field_vals)
+
+            # Add column to database
+            self._add_column_to_table(field_name, self.dynamic_field_type)
+
+            # Create translation if needed
+            self._create_safe_translation(field.id, field_vals.get('field_description', field_name))
+
+            return field
+
+        except Exception as e:
+            _logger.error("Field creation/update failed for %s: %s", field_name, str(e))
+            raise UserError(_("Error creating/updating field: %s") % str(e))
+
+    def _prepare_field_vals(self, field_name):
+        """Prepare field values dictionary"""
+        field_description = self.dynamic_field_label or field_name.replace('_', ' ').title()
+        field_vals = {
+            'name': field_name,
+            'model_id': self.env['ir.model'].sudo().search([('model', '=', self._name)]).id,
+            'field_description': field_description,
+            'ttype': self.dynamic_field_type,
+            'state': 'manual',
+            'store': True,
+            'required': False,
+        }
+
+        if self.dynamic_field_type == 'selection' and self.selection_options:
+            selection = []
+            for line in self.selection_options.split('\n'):
+                if line.strip() and ':' in line:
+                    key, val = map(str.strip, line.split(':', 1))
+                    selection.append((key, val))
+            if selection:
+                field_vals['selection'] = str(selection)
+        return field_vals
+
+    def _generate_valid_field_name(self, name):
+        """Genera un nombre de campo válido"""
+        name = re.sub(r'[^a-zA-Z0-9_]', '', name.lower().replace(' ', '_'))
+        if not name.startswith('x_'):
+            name = f'x_{name}'
+        if len(name) > 2 and name[2].isdigit():
+            name = f'x_field_{name[2:]}'
+        return name
+
+    def _create_field_in_model(self, field_name):
+        """Versión robusta para crear campos sin dependencia de 'key'"""
+        try:
+            # 1. Obtener o crear el registro del modelo
+            model = self.env['ir.model'].sudo().search([('model', '=', self._name)])
+            if not model:
+                model = self.env['ir.model'].sudo().create({
+                    'name': 'Task Board',
+                    'model': self._name,
+                })
+
+            # 2. Preparar valores del campo
+            field_description = self.dynamic_field_label or field_name.replace('_', ' ').title()
+            field_vals = {
+                'name': field_name,
+                'model_id': model.id,
+                'field_description': field_description,
+                'ttype': self.dynamic_field_type,
+                'state': 'manual',
+                'store': True,
+                'required': False,
+            }
+
+            # 3. Manejar campos de selección
+            if self.dynamic_field_type == 'selection' and self.selection_options:
+                selection = []
+                for line in self.selection_options.split('\n'):
+                    if line.strip() and ':' in line:
+                        key, val = map(str.strip, line.split(':', 1))
+                        selection.append((key, val))
+                if selection:
+                    field_vals['selection'] = str(selection)
+
+            # 4. Crear el campo con manejo de errores
+            try:
+                field = self.env['ir.model.fields'].sudo().create(field_vals)
+                self._add_column_to_table(field_name, self.dynamic_field_type)
+                self._create_safe_translation(field.id, field_description)
+                return field
+            except Exception as e:
+                _logger.error("Failed to create field: %s", str(e))
+                raise
+
+        except Exception as e:
+            _logger.error("Field creation process failed: %s", str(e))
+            raise UserError(_("Error creating field: %s") % str(e))
+
+    def _create_safe_translation(self, field_id, description):
+        """Método seguro para crear traducciones"""
+        try:
+            # Verificar si el módulo de traducción está instalado
+            if not self.env['ir.module.module'].search(
+                [('name', '=', 'base'), ('state', '=', 'installed')]
+            ):
+                return False
+
+            # Crear traducción solo si no existe
+            existing = self.env['ir.translation'].search([
+                ('name', '=', 'ir.model.fields,field_description'),
+                ('res_id', '=', field_id),
+                ('lang', '=', self.env.user.lang)
+            ])
+            
+            if not existing:
+                self.env['ir.translation'].sudo().create({
+                    'name': 'ir.model.fields,field_description',
+                    'type': 'model',
+                    'lang': self.env.user.lang,
+                    'res_id': field_id,
+                    'value': description,
+                    'state': 'translated'
+                })
+            return True
+        except Exception as e:
+            _logger.warning("Could not create translation: %s", str(e))
+            return False
+
+    def _add_column_to_table(self, field_name, field_type):
+        """Añadir columna con manejo robusto de errores"""
+        type_mapping = {
+            'char': 'VARCHAR(255)',
+            'text': 'TEXT',
+            'html': 'TEXT',
+            'integer': 'INTEGER',
+            'float': 'NUMERIC',
+            'boolean': 'BOOLEAN',
+            'selection': 'VARCHAR(255)',
+            'date': 'DATE',
+            'datetime': 'TIMESTAMP'
+        }
+        
+        column_type = type_mapping.get(field_type, 'VARCHAR(255)')
+        
+        try:
+            self.env.cr.execute(f"""
+                ALTER TABLE "{self._table}" 
+                ADD COLUMN IF NOT EXISTS "{field_name}" {column_type}
+            """)
+            return True
+        except Exception as e:
+            _logger.error("Failed to add column %s: %s", field_name, str(e))
+            raise UserError(_("Failed to create database column. Error: %s") % str(e))
+
+    def _create_initial_translation(self, field_id, description):
+        """Create initial translations for the field"""
+        langs = self.env['res.lang'].search([])
+        for lang in langs:
+            self.env['ir.translation'].sudo().create({
+                'name': 'ir.model.fields,field_description',
+                'type': 'model',
+                'lang': lang.code,
+                'res_id': field_id,
+                'value': description,
+                'state': 'translated'
+            })
+
+    def _store_field_metadata(self, field_name):
+        """Store field configuration in JSON"""
+        self.ensure_one()
+        try:
+            current_data = json.loads(self.dynamic_fields_data or '{}')
+            field_config = {
+                'type': self.dynamic_field_type,
+                'label': self.dynamic_field_label or field_name.replace('_', ' ').title(),
+                'task_specific': bool(self.apply_to_specific_task),
+                'created_at': fields.Datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'created_by': self.env.user.id
+            }
+
+            if self.dynamic_field_type == 'selection' and self.selection_options:
+                options = []
+                for line in self.selection_options.split('\n'):
+                    if line.strip() and ':' in line:
+                        key, val = map(str.strip, line.split(':', 1))
+                        options.append((key, val))
+                field_config['options'] = options
+
+            current_data[field_name] = field_config
+            self.dynamic_fields_data = json.dumps(current_data)
+        except Exception as e:
+            _logger.error("Error storing field metadata: %s", str(e))
+            raise
+
+    # --------------------------------------------
+    # VIEW METHODS
+    # --------------------------------------------
+    def _update_views_for_specific_task(self, field_name, task_id):
+        """Update views to show field only for specific task"""
+        self._update_form_view(field_name, task_specific=True, task_id=task_id)
+        self._update_kanban_view(field_name, task_specific=True, task_id=task_id)
+    
+    def _update_views_globally(self, field_name):
+        """Update views to show field for all tasks"""
+        self._update_form_view(field_name)
+        self._update_kanban_view(field_name)
+    
+    def _update_form_view(self, field_name, task_specific=False, task_id=None):
+        """Update form view to include the new field"""
+        view_ref = 'task_planner.activity_planner_details_view_form'
+        base_view = self.env.ref(view_ref)
+        
+        field_attrs = {
+            'name': field_name,
+            'string': self.dynamic_field_label or field_name.replace('_', ' ').title(),
+        }
+        
+        if self.dynamic_field_type == 'html':
+            field_attrs['widget'] = 'html'
+        elif self.dynamic_field_type == 'selection':
+            field_attrs['widget'] = 'selection'
+        elif self.dynamic_field_type in ['date', 'datetime']:
+            field_attrs['widget'] = self.dynamic_field_type
+        
+        if task_specific:
+            arch = f"""
+            <data>
+                <xpath expr="//sheet" position="inside">
+                    <div t-if="id == {task_id}">
+                        <field {' '.join(f'{k}="{v}"' for k, v in field_attrs.items())}/>
+                    </div>
+                </xpath>
+            </data>
+            """
+        else:
+            arch = f"""
+            <data>
+                <xpath expr="//sheet" position="inside">
+                    <field {' '.join(f'{k}="{v}"' for k, v in field_attrs.items())}/>
+                </xpath>
+            </data>
+            """
+        view_name = f"{self._name}.form.{f'task_{task_id}.' if task_specific else ''}{field_name}"
+        self._create_or_update_view(view_name, self._name, base_view.id, arch, 'form')
+    
+    def _update_kanban_view(self, field_name, specific_task_id=None):
+        """
+        Inserta dinámicamente un campo en la vista kanban, usando solo el ID numérico para comparación
+        """
+        try:
+            # 1. Obtener vista kanban base
+            kanban_view = self.env.ref('task_planner.activity_planner_task_view_kanban')
+            if not kanban_view:
+                raise UserError("Vista kanban base no encontrada")
+
+            # 2. Configurar atributos del campo
+            field_label = self.dynamic_field_label or field_name.replace('_', ' ').title()
+            field_attrs = {
+                'name': field_name,
+                'string': field_label,
+            }
+
+            # 3. Añadir widget si aplica
+            if self.dynamic_field_type == 'html':
+                field_attrs['widget'] = 'html'
+            elif self.dynamic_field_type in ['selection', 'date', 'datetime']:
+                field_attrs['widget'] = self.dynamic_field_type
+            elif self.dynamic_field_type == 'boolean':
+                field_attrs['widget'] = 'boolean_toggle'
+
+            # 4. Construir XML dinámico - versión corregida
+            xpath_expr = "//t[@t-name='kanban-box']//table[hasclass('kanban_table')]/tbody/tr[last()]"
+
+            # Asegurarnos que specific_task_id es numérico
+            task_id = int(specific_task_id) if specific_task_id else None
+            t_if_condition = f't-if="record.id.raw_value == {task_id}"' if task_id else ''
+
+            field_line = " ".join(f'{k}="{v}"' for k, v in field_attrs.items())
+
+            arch = f"""
+            <data>
+                <xpath expr="{xpath_expr}" position="after">
+                    <tr {t_if_condition} class="dynamic_field_row">
+                        <td colspan="2"><strong>{field_label}</strong></td>
+                        <td colspan="3">
+                            <field {field_line}/>
+                        </td>
+                    </tr>
+                </xpath>
+            </data>
+            """
+            # 5. Crear o reemplazar vista heredada
+            view_name = f"{self._name}.kanban.dynamic.{field_name}.{task_id or 'global'}"
+
+            # Eliminar versiones anteriores
+            self.env['ir.ui.view'].search([
+                ('name', '=like', f"{self._name}.kanban.dynamic.{field_name}%"),
+                ('model', '=', self._name)
+            ]).unlink()
+
+            # Crear nueva vista
+            self.env['ir.ui.view'].create({
+                'name': view_name,
+                'type': 'kanban',
+                'model': self._name,
+                'inherit_id': kanban_view.id,
+                'arch_base': arch,
+                'priority': 99,
+            })
+
+            # 6. Limpieza de caché forzada
+            self.env.invalidate_all()
+            self.env['ir.ui.view'].clear_caches()
+            return True
+
+        except Exception as e:
+            error_msg = f"Error actualizando kanban: {str(e)}"
+            _logger.error(error_msg)
+            raise UserError(error_msg)
+
+    def _force_cache_reload(self):
+        """Limpieza de caché completa"""
+        try:
+            self.env.invalidate_all()
+            if hasattr(self.env.registry, '_clear_cache'):
+                self.env.registry._clear_cache()
+            self.env['ir.ui.view'].clear_caches()
+            if 'ir.asset' in self.env:
+                self.env['ir.asset']._generate_assets()
+            return True
+        except Exception as e:
+            _logger.error(f"Error en limpieza de caché: {str(e)}")
+            return False
+
+    def _safe_cache_cleanup(self):
+        """Limpieza de caché que no interfiere con la creación de registros"""
+        try:
+            # 1. Invalidar cachés básicos
+            self.env.invalidate_all()
+
+            # 2. Limpiar caché de vistas
+            self.env['ir.ui.view'].clear_caches()
+
+            # 3. Limpieza adicional solo si es necesario
+            if hasattr(self.env.registry, '_clear_cache'):
+                self.env.registry._clear_cache()
+
+            return True
+        except Exception as e:
+            _logger.warning(f"Error no crítico en limpieza de caché: {str(e)}")
+            return True
+    
+    def _create_or_update_view(self, view_name, model, inherit_id, arch, view_type):
+        """Helper to create or update a view"""
+        try:
+            # Buscar si ya existe una vista heredada para este campo
+            existing_view = self.env['ir.ui.view'].search([
+                ('name', '=', view_name),
+                ('model', '=', model)
+            ], limit=1)
+
+            if existing_view:
+                # Actualizar vista existente
+                existing_view.write({'arch_base': arch})
+            else:
+                # Crear nueva vista heredada
+                self.env['ir.ui.view'].create({
+                    'name': view_name,
+                    'type': view_type,
+                    'model': model,
+                    'inherit_id': inherit_id,
+                    'arch': arch,
+                    'priority': 100,  # Alta prioridad para asegurar que se aplique
+                })
+
+            # Limpiar cachés críticos
+            self.env['ir.ui.view'].clear_caches()
+            if hasattr(self.env.registry, '_clear_cache'):
+                self.env.registry._clear_cache()
+
+            return True
+        except Exception as e:
+            _logger.error("Error creating/updating view %s: %s", view_name, str(e))
+            raise UserError(_("Error updating view: %s") % str(e))
+
+    # --------------------------------------------
+    # FIELD REMOVAL METHODS
+    # --------------------------------------------
+    def action_remove_dynamic_field(self):
+        """Remove a dynamic field completely"""
+        self.ensure_one()
+        
+        if not self.dynamic_field_name:
+            raise UserError(_("Please specify the field name to remove"))
+        
+        field_name = self._generate_valid_field_name(self.dynamic_field_name)
+        
+        try:
+            self._remove_field_artifacts(field_name)
+            return {'type': 'ir.actions.client', 'tag': 'reload'}
+        except Exception as e:
+            _logger.error("Error removing field %s: %s", field_name, str(e))
+            raise UserError(_("Error removing field: %s") % str(e))
+    
+    def _remove_field_artifacts(self, field_name):
+        """Elimina todos los rastros del campo, incluyendo vistas específicas"""
+        try:
+            # Eliminar vistas específicas primero
+            views = self.env['ir.ui.view'].search([
+                ('name', 'like', f'{self._name}.kanban.dynamic.{field_name}%'),
+                ('model', '=', self._name)
+            ])
+            views.unlink()
+
+            # Resto de la limpieza (metadata, definición de campo, etc.)
+            self._remove_field_metadata(field_name)
+            self._remove_field_definition(field_name)
+            self._safe_remove_column(field_name)
+
+            # Limpieza final de caché
+            self._ultimate_cache_cleanup()
+        except Exception as e:
+            _logger.error("Error en limpieza: %s", str(e))
+            raise
+
+    def _remove_field_metadata(self, field_name):
+        """Remove field from stored JSON data"""
+        self.ensure_one()
+        
+        if not self.dynamic_fields_data:
+            return
+            
+        try:
+            data = json.loads(self.dynamic_fields_data)
+            if field_name in data:
+                del data[field_name]
+                self.dynamic_fields_data = json.dumps(data)
+        except Exception:
+            pass
+    
+    def _remove_field_definition(self, field_name):
+        """Remove the field from ir.model.fields"""
+        field = self.env['ir.model.fields'].search([
+            ('model', '=', self._name),
+            ('name', '=', field_name)
+        ], limit=1)
+        
+        if field:
+            try:
+                field.unlink()
+            except Exception:
+                self.env.cr.execute("""
+                    DELETE FROM ir_model_fields
+                    WHERE model = %s AND name = %s
+                """, [self._name, field_name])
+    
+    def _remove_field_from_views(self, field_name):
+        """Remove all references to field in views"""
+        views = self.env['ir.ui.view'].search([
+            ('model', '=', self._name),
+            ('arch_db', 'ilike', field_name)
+        ])
+        
+        for view in views:
+            try:
+                if field_name in (view.arch_db or ''):
+                    view.unlink()
+            except Exception:
+                pass
+    
+    def _safe_remove_column(self, field_name):
+        """Safely remove column from database with proper transaction handling"""
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Start a new transaction
+                self.env.cr.execute("BEGIN;")
+
+                # Check if column exists
+                self.env.cr.execute("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = %s 
+                    AND column_name = %s
+                """, [self._table, field_name])
+
+                if self.env.cr.fetchone():
+                    try:
+                        self.env.cr.execute(
+                            f'ALTER TABLE "{self._table}" DROP COLUMN IF EXISTS "{field_name}"'
+                        )
+                        self.env.cr.execute("COMMIT;")
+                        _logger.info("Successfully removed column %s", field_name)
+                        return True
+                    except Exception as e:
+                        self.env.cr.execute("ROLLBACK;")
+                        _logger.warning("Attempt %d to drop column failed: %s", attempt + 1, str(e))
+                        if attempt == max_attempts - 1:
+                            raise
+                        time.sleep(0.5 * (attempt + 1))
+                else:
+                    self.env.cr.execute("COMMIT;")
+                    return False
+
+            except Exception as e:
+                _logger.error("Transaction failed completely: %s", str(e))
+                try:
+                    self.env.cr.execute("ROLLBACK;")
+                except:
+                    pass
+                if attempt == max_attempts - 1:
+                    raise UserError(_("Failed to remove column after %d attempts. Error: %s") % (max_attempts, str(e)))
+
+    # --------------------------------------------
+    # CACHE METHODS
+    # --------------------------------------------
+    def _ultimate_cache_cleanup(self):
+        """Limpieza de caché más efectiva"""
+        try:
+            # 1. Invalidar cachés de modelos
+            self.env.invalidate_all()
+
+            # 2. Limpiar caché del registro
+            if hasattr(self.env.registry, '_clear_cache'):
+                self.env.registry._clear_cache()
+
+            # 3. Limpiar caché de vistas
+            self.env['ir.ui.view'].clear_caches()
+
+            # 4. Limpiar caché de traducciones
+            if 'ir.translation' in self.env:
+                self.env['ir.translation'].clear_caches()
+
+            # 5. Regenerar assets
+            if 'ir.asset' in self.env:
+                self.env['ir.asset']._generate_assets()
+
+            # 6. Forzar recarga de campos
+            self.env.registry.setup_models(self.env.cr)
+
+            return True
+        except Exception as e:
+            _logger.error("Error en limpieza de caché: %s", str(e))
+            return False
+
+    # --------------------------------------------
+    # ACTION METHODS
+    # --------------------------------------------
+    def action_open_dynamic_field_creator(self):
+        """Open dialog to create dynamic field"""
+        self.ensure_one()
+        return {
+            'name': _('Add Dynamic Field'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'task.board',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref('task_planner.view_task_board_dynamic_fields_form').id,
+            'target': 'new',
+        }
+    
+    def action_view_subtasks(self):
+        """View subtasks action"""
+        self.ensure_one()
+        return {
+            'name': _('Subtasks'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'subtask.board',
+            'view_mode': 'tree,form',
+            'domain': [('task_id', '=', self.id)],
+            'context': {
+                'default_task_id': self.id,
+                'search_default_task_id': self.id,
+                'form_view_initial_mode': 'edit',
+                'create': True
+            },
+            'target': 'current',
+        }
+    
+    def action_toggle_subtasks(self):
+        """Toggle subtasks visibility"""
+        for task in self:
+            task.show_subtasks = not task.show_subtasks
+        return True
+    
     def open_details_form(self):
+        """Open detailed form view"""
+        self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Details Board',
+            'name': _('Task Details'),
             'res_model': 'task.board',
             'res_id': self.id,
             'view_mode': 'form',
             'view_id': self.env.ref('task_planner.activity_planner_details_view_form').id,
             'target': 'current',
+            'flags': {'mode': 'readonly'} if self.state == 'done' else {}
         }
+
+    # --------------------------------------------
+    # CONSTRAINTS AND VALIDATION
+    # --------------------------------------------
+    @api.constrains('person', 'department_id')
+    def _check_person_in_department(self):
+        for task in self:
+            if task.department_id and task.person not in task.department_id.member_ids:
+                raise ValidationError(_(
+                    "The assigned employee doesn't belong to the selected department. "
+                    "Valid members: %s") % ", ".join(task.department_id.member_ids.mapped('name')))
+
+    # --------------------------------------------
+    # CRUD OVERRIDES
+    # --------------------------------------------
+    @api.model
+    def create(self, vals):
+        """Override create to check department assignment"""
+        task = super().create(vals)
+        task._check_person_in_department()
+        return task
     
-    def _is_valid_db_identifier(self, name):
-        """Valida si el nombre es un identificador válido de columna en PostgreSQL"""
-        import re
-        return re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', name) is not None
+    def write(self, vals):
+        """Override write to check department assignment"""
+        res = super().write(vals)
+        self._check_person_in_department()
+        return res
