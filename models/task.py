@@ -498,21 +498,22 @@ class TaskBoard(models.Model):
     
     def _update_kanban_view(self, field_name, specific_task_id=None):
         """
-        Inserta dinámicamente un campo en la vista kanban, usando solo el ID numérico para comparación
+        Inserta dinámicamente un campo como COLUMNA en la vista kanban,
+        solo para el ID específico cuando se proporciona
         """
         try:
             # 1. Obtener vista kanban base
             kanban_view = self.env.ref('task_planner.activity_planner_task_view_kanban')
             if not kanban_view:
                 raise UserError("Vista kanban base no encontrada")
-
+    
             # 2. Configurar atributos del campo
             field_label = self.dynamic_field_label or field_name.replace('_', ' ').title()
             field_attrs = {
                 'name': field_name,
                 'string': field_label,
             }
-
+    
             # 3. Añadir widget si aplica
             if self.dynamic_field_type == 'html':
                 field_attrs['widget'] = 'html'
@@ -520,37 +521,38 @@ class TaskBoard(models.Model):
                 field_attrs['widget'] = self.dynamic_field_type
             elif self.dynamic_field_type == 'boolean':
                 field_attrs['widget'] = 'boolean_toggle'
-
-            # 4. Construir XML dinámico - versión corregida
-            xpath_expr = "//t[@t-name='kanban-box']//table[hasclass('kanban_table')]/tbody/tr[last()]"
-
-            # Asegurarnos que specific_task_id es numérico
+    
+            # 4. Construir XML dinámico como COLUMNA
             task_id = int(specific_task_id) if specific_task_id else None
             t_if_condition = f't-if="record.id.raw_value == {task_id}"' if task_id else ''
-
+            
             field_line = " ".join(f'{k}="{v}"' for k, v in field_attrs.items())
-
+    
             arch = f"""
             <data>
-                <xpath expr="{xpath_expr}" position="after">
-                    <tr {t_if_condition} class="dynamic_field_row">
-                        <td colspan="2"><strong>{field_label}</strong></td>
-                        <td colspan="3">
-                            <field {field_line}/>
-                        </td>
-                    </tr>
+                <!-- Añadir encabezado de columna -->
+                <xpath expr="//table[@class='kanban_table']/thead/tr/th[.='Due Date']" position="after">
+                    <th {t_if_condition}>{field_label}</th>
+                </xpath>
+                
+                <!-- Añadir celda en los registros -->
+                <xpath expr="//table[@class='kanban_table']/tbody/tr/td[./field[@name='completion_date']]" position="after">
+                    <td {t_if_condition}>
+                        <field {field_line}/>
+                    </td>
                 </xpath>
             </data>
             """
+    
             # 5. Crear o reemplazar vista heredada
             view_name = f"{self._name}.kanban.dynamic.{field_name}.{task_id or 'global'}"
-
+    
             # Eliminar versiones anteriores
             self.env['ir.ui.view'].search([
                 ('name', '=like', f"{self._name}.kanban.dynamic.{field_name}%"),
                 ('model', '=', self._name)
             ]).unlink()
-
+    
             # Crear nueva vista
             self.env['ir.ui.view'].create({
                 'name': view_name,
@@ -560,12 +562,12 @@ class TaskBoard(models.Model):
                 'arch_base': arch,
                 'priority': 99,
             })
-
+    
             # 6. Limpieza de caché forzada
             self.env.invalidate_all()
             self.env['ir.ui.view'].clear_caches()
             return True
-
+    
         except Exception as e:
             error_msg = f"Error actualizando kanban: {str(e)}"
             _logger.error(error_msg)

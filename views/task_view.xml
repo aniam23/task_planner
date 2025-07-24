@@ -123,7 +123,7 @@
             <field name="model">task.board</field>
             <field name="priority">10</field>
             <field name="arch" type="xml">
-                <kanban class="o_kanban_dashboard" sample="true">
+                <kanban  edit="true" default_group_by="show_subtasks" class="o_kanban_full_width">
                     <field name="id"/>
                     <field name="name"/>
                     <field name="person"/>
