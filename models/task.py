@@ -14,11 +14,9 @@ class TaskBoard(models.Model):
     _description = 'Task Board'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _rec_name = 'name'
-
     # --------------------------------------------
     # BASIC FIELDS
     # --------------------------------------------
-    
     name = fields.Char(string='Task Name', required=True, tracking=True)
     sequence = fields.Integer(string='Sequence', default=10)
     completion_date = fields.Datetime(string='Due Date')
@@ -45,7 +43,6 @@ class TaskBoard(models.Model):
     color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
     files = fields.Many2many('ir.attachment', string='Attachments')
     show_subtasks = fields.Boolean(string='Show Subtasks')
-    
     # --------------------------------------------
     # SUBTASK RELATED FIELDS
     # --------------------------------------------
@@ -54,7 +51,6 @@ class TaskBoard(models.Model):
     completed_subtasks = fields.Integer(string='Completed Subtasks', compute='_compute_progress', store=True)
     total_subtasks = fields.Integer(string='Total Subtasks', compute='_compute_progress', store=True)
     progress = fields.Float(string='Progress', compute='_compute_progress', store=True, group_operator="avg")
-    
     # --------------------------------------------
     # DYNAMIC FIELDS CONFIGURATION
     # --------------------------------------------
@@ -75,10 +71,21 @@ class TaskBoard(models.Model):
     selection_options = fields.Text(string='Selection Options')
     dynamic_fields_data = fields.Text(string='Dynamic Fields Data')
     dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
-
+    has_dynamic_fields = fields.Boolean(compute='_compute_has_dynamic_fields')
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
+    def _compute_has_dynamic_fields(self):
+        """Compute si hay campos dinámicos para mostrar la sección"""
+        dynamic_fields = self.env['ir.model.fields'].search([
+            ('model', '=', 'task.board'),
+            ('name', 'like', 'x_%'),
+            ('store', '=', True)
+        ])
+        
+        for record in self:
+            record.has_dynamic_fields = bool(dynamic_fields)
+
     @api.depends('subtask_ids.state')
     def _compute_progress(self):
         for task in self:
@@ -181,9 +188,6 @@ class TaskBoard(models.Model):
             except Exception as e:
                 _logger.error(f"Failed to create column {column_name}: {str(e)}")
                 self.env.cr.rollback()
-
-    
-
     # --------------------------------------------
     # DYNAMIC FIELD METHODS
     # --------------------------------------------
@@ -801,6 +805,31 @@ class TaskBoard(models.Model):
     # --------------------------------------------
     # ACTION METHODS
     # --------------------------------------------
+    def action_open_edit_form(self):
+        self.ensure_one()
+
+        # Obtener todos los campos dinámicos
+        dynamic_fields = self.env['ir.model.fields'].search([
+            ('model', '=', 'task.board'),
+            ('name', 'like', 'x_%'),
+            ('store', '=', True)
+        ])
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'task.board',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'new',
+            'views': [(False, 'form')],
+            'context': {
+                'create': False,
+                'edit': True,
+                'dynamic_fields': [f.name for f in dynamic_fields]
+            },
+        }
+    
+
     def action_open_dynamic_field_creator(self):
         """Open dialog to create dynamic field"""
         self.ensure_one()

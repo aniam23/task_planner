@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- Vista Formulario - Corregida -->
+        <!-- Vista Formulario -->
         <record id="activity_planner_details_view_form" model="ir.ui.view">
             <field name="name">task.board.details.form</field>
             <field name="model">task.board</field>
@@ -13,7 +13,7 @@
                                 <field name="name" string="Task Name"/>
                                 <field name="allowed_member_ids" invisible="1"/>
                                 <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
-                                <field name="state" widget="selection" readonly="1" string="Status"/>
+                                <field name="state" widget="selection" string="Status"/>
                                 <field name="completion_date" string="Due Date"/>
                                 <field name="files" widget="many2many_binary" string="Attachments"/>
                             </group>
@@ -41,6 +41,32 @@
                         <field name="message_follower_ids" widget="mail_followers"/>
                         <field name="message_ids" widget="mail_thread"/>
                     </div>
+                </form>
+            </field>
+        </record>
+        <!-- Editar campos del kanban-->
+        <record id="view_task_board_form" model="ir.ui.view">
+            <field name="name">task.board.form</field>
+            <field name="model">task.board</field>
+            <field name="arch" type="xml">
+                <form string="Edit Task">
+                    <sheet>
+                        <group>
+                            <field name="name" string="Task Name"/>
+                            <field name="allowed_member_ids" invisible="1"/> 
+                            <field name="person" string="Assigned To" widget="many2one_avatar_user"/>
+                            <field name="state" string="Status"/>
+                            <field name="progress" string="Progress"/>
+                            <field name="completed_subtasks" string="Completed Subtasks"/>
+                            <field name="total_subtasks" string="Total Subtasks"/>
+                            <field name="completion_date" string="Due Date" widget="date"/>
+                            <field name="show_subtasks" string="Show Subtasks"/>
+                        </group>
+                    </sheet>
+                    <footer>
+                        <button string="Save" type="object" name="write" class="btn-primary"/>
+                        <button string="Cancel" special="cancel" class="btn-secondary"/>
+                    </footer>
                 </form>
             </field>
         </record>
@@ -117,13 +143,13 @@
                 </tree>
             </field>
         </record>
-        <!-- Vista Kanban mejorada -->
+        <!-- Vista Kanban  -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
             <field name="model">task.board</field>
             <field name="priority">10</field>
             <field name="arch" type="xml">
-                <kanban  edit="true" default_group_by="show_subtasks" class="o_kanban_full_width">
+                <kanban edit="true" default_group_by="show_subtasks" class="o_kanban_full_width">
                     <field name="id"/>
                     <field name="name"/>
                     <field name="person"/>
@@ -133,21 +159,23 @@
                     <field name="total_subtasks"/>
                     <field name="completion_date"/>
                     <field name="show_subtasks"/>
+                   
                     <templates>
                         <t t-name="kanban-box">
                             <div class="oe_kanban_global_click">
                                 <div class="o_kanban_record">
                                     <div class="kanban_header">
                                         <strong><field name="name"/></strong>
+                                        <button type="object" name="action_open_edit_form" string="Edit" class="btn btn-sm btn-link float-right" icon="fa-pencil"/>
                                     </div>
-                                    <table class="kanban_table" t-att-id="'record.id'">
+                                    <table class="kanban_table">
                                         <thead>
                                             <tr>
-                                                <th>Assigned To</th>
-                                                <th>Status</th>
-                                                <th>Progress</th>
-                                                <th>Due Date</th>
-                                                <th>Actions</th>
+                                                <th class="o_form_label">Asignado a</th>
+                                                <th class="o_form_label">Estado</th>
+                                                <th class="o_form_label">Progreso</th>
+                                                <th class="o_form_label">Due Date</th>
+                                                <th class="o_form_label">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -155,7 +183,7 @@
                                                 <td><field name="person" widget="many2one_avatar_user"/></td>
                                                 <td><field name="state" widget="badge"/></td>
                                                 <td>
-                                                    <field name="progress" widget="progressbar" options="{'editable': false, 'input_type': 'number'}"/>
+                                                    <field name="progress" widget="progressbar" options="{'editable': true, 'input_type': 'number'}"/>
                                                     <small><field name="completed_subtasks"/>/<field name="total_subtasks"/></small>
                                                 </td>
                                                 <td><field name="completion_date" widget="date"/></td>
@@ -187,9 +215,22 @@
                                 }
                                 .kanban_table th {
                                     background-color: #f8f9fa;
+                                    text-align: left;
                                 }
                                 .kanban_actions button {
                                     margin: 0 2px;
+                                }
+                                .o_form_label {
+                                    font-weight: normal;
+                                    margin-bottom: 0;
+                                }
+                                .kanban_header {
+                                    display: flex;
+                                    justify-content: space-between;
+                                    align-items: center;
+                                    padding: 8px;
+                                    background-color: #f8f9fa;
+                                    border-bottom: 1px solid #dee2e6;
                                 }
                             </style>
                         </t>
