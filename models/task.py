@@ -71,10 +71,17 @@ class TaskBoard(models.Model):
     selection_options = fields.Text(string='Selection Options')
     dynamic_fields_data = fields.Text(string='Dynamic Fields Data')
     dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
-    has_dynamic_fields = fields.Boolean(compute='_compute_has_dynamic_fields')
+    has_dynamic_fields = fields.Boolean(
+        string="Has Dynamic Fields",
+        compute='_compute_has_dynamic_fields',
+        store=False  # No necesitamos almacenarlo, se calcula dinámicamente
+    )
+    
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
+    def action_save(self):
+        return True  # Odoo guardará automáticamente los cambios si el método retorna True
     def _compute_has_dynamic_fields(self):
         """Compute si hay campos dinámicos para mostrar la sección"""
         dynamic_fields = self.env['ir.model.fields'].search([
@@ -82,7 +89,7 @@ class TaskBoard(models.Model):
             ('name', 'like', 'x_%'),
             ('store', '=', True)
         ])
-        
+
         for record in self:
             record.has_dynamic_fields = bool(dynamic_fields)
 
@@ -137,19 +144,18 @@ class TaskBoard(models.Model):
                     if isinstance(field_config, dict):
                         field_info['fields'].append(field_name)
                         field_info['field_attrs'][field_name] = {
-                            'type': field_config.get('type', 'char'),
-                            'string': field_config.get('label', field_name),
+                            'string': field_config.get('label', field_name.replace('_', ' ').title()),
                             'widget': field_config.get('widget', False),
-                            'options': field_config.get('options', False)
+                            'options': field_config.get('options', {})
                         }
                 
-                task.dynamic_field_list = json.dumps(field_info)
+                task.dynamic_field_list = field_info
             except Exception as e:
                 _logger.error("Error computing dynamic fields: %s", str(e))
-                task.dynamic_field_list = json.dumps({
+                task.dynamic_field_list = {
                     'fields': [],
                     'field_attrs': {}
-                })
+                }
 
     # --------------------------------------------
     # DATABASE SCHEMA METHODS
@@ -227,7 +233,6 @@ class TaskBoard(models.Model):
                 ('name', 'like', f'{self._name}.kanban.dynamic.{field_name}'),
                 ('model', '=', self._name)
             ], limit=1)
-
             if not view:
                 _logger.error("No se encontró la vista heredada")
                 return False
@@ -808,27 +813,57 @@ class TaskBoard(models.Model):
     def action_open_edit_form(self):
         self.ensure_one()
 
-        # Obtener todos los campos dinámicos
+        # Obtener campos dinámicos existentes
         dynamic_fields = self.env['ir.model.fields'].search([
             ('model', '=', 'task.board'),
             ('name', 'like', 'x_%'),
             ('store', '=', True)
         ])
 
+        # Buscar si ya existe una vista temporal para esta tarea
+        existing_view = self.env['ir.ui.view'].search([
+            ('name', '=', f'task.board.dynamic.fields.{self.id}'),
+            ('model', '=', 'task.board')
+        ], limit=1)
+
+        # Generar XML para los campos dinámicos
+        fields_xml = '\n'.join(
+            f'<field name="{field.name}" string="{field.field_description}"/>'
+            for field in dynamic_fields
+        )
+
+        arch = f"""
+        <data>
+            <xpath expr="//group" position="inside">
+                <group string="Dynamic Fields" attrs="{{'invisible': [('has_dynamic_fields', '=', False)]}}">
+                    {fields_xml}
+                </group>
+            </xpath>
+        </data>
+        """
+
+        # Actualizar vista existente o crear nueva
+        if existing_view:
+            existing_view.write({'arch_base': arch})
+            view_id = existing_view.id
+        else:
+            view_id = self.env['ir.ui.view'].create({
+                'name': f'task.board.dynamic.fields.{self.id}',
+                'model': 'task.board',
+                'inherit_id': self.env.ref('task_planner.view_task_board_form').id,
+                'arch_base': arch,
+                'priority': 99,
+            }).id
+
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'task.board',
             'view_mode': 'form',
             'res_id': self.id,
+            'view_id': view_id,
             'target': 'new',
-            'views': [(False, 'form')],
-            'context': {
-                'create': False,
-                'edit': True,
-                'dynamic_fields': [f.name for f in dynamic_fields]
-            },
+            'context': {'create': False}
         }
-    
 
     def action_open_dynamic_field_creator(self):
         """Open dialog to create dynamic field"""
