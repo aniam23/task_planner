@@ -4,8 +4,8 @@ class SubtaskActivity(models.Model):
     _name = 'subtask.activity'
     _description = 'Actividad Interna de Subtarea'
 
-    name = fields.Char(string='Descripción de Actividad', required=True)
-    date_deadline = fields.Date(string='Fecha Límite')
+    name = fields.Char(string='Subtarea', required=True)
+    date_deadline = fields.Date(string='Fecha')
     done = fields.Boolean(string='Completado')
     subtask_id = fields.Many2one('subtask.board', string='Subtarea', ondelete='cascade', required=True)
     responsible_id = fields.Many2one('hr.employee', string='Responsable')

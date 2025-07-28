@@ -17,7 +17,7 @@ class TaskBoard(models.Model):
     # --------------------------------------------
     # BASIC FIELDS
     # --------------------------------------------
-    name = fields.Char(string='Task Name', required=True, tracking=True)
+    name = fields.Char(string='Grupo', required=True, tracking=True)
     sequence = fields.Integer(string='Sequence', default=10)
     completion_date = fields.Datetime(string='Due Date')
     department_id = fields.Many2one(
@@ -28,7 +28,7 @@ class TaskBoard(models.Model):
     )
     person = fields.Many2one(
         'hr.employee',
-        string='Assigned To',
+        string='Responsable',
         tracking=True,
         required=True,
         domain="[('id', 'in', allowed_member_ids)]"
@@ -36,7 +36,7 @@ class TaskBoard(models.Model):
     allowed_member_ids = fields.Many2many(
         'hr.employee',
         compute='_compute_allowed_members',
-        string='Allowed Members'
+        string='Miembros'
     )
     state = fields.Selection([
         ('new', 'New'),
@@ -44,24 +44,24 @@ class TaskBoard(models.Model):
         ('done', 'Done'),
         ('stuck', 'Stuck'),
         ('view_subtasks', 'View Subtasks')
-    ], string='Status', default='new', tracking=True)
-    color = fields.Integer(string='Color Index', compute='_compute_color_from_state', store=True)
-    files = fields.Many2many('ir.attachment', string='Attachments')
-    show_subtasks = fields.Boolean(string='Show Subtasks')
+    ], string='Estado', default='new', tracking=True)
+    color = fields.Integer(string='Color', compute='_compute_color_from_state', store=True)
+    files = fields.Many2many('ir.attachment', string='Agregar Archivos')
+    show_subtasks = fields.Boolean(string='Ver tareas')
     # --------------------------------------------
     # SUBTASK RELATED FIELDS
     # --------------------------------------------
-    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Subtasks')
-    subtasks_count = fields.Integer(string='Subtask Count', compute='_compute_progress', store=True)
-    completed_subtasks = fields.Integer(string='Completed Subtasks', compute='_compute_progress', store=True)
-    total_subtasks = fields.Integer(string='Total Subtasks', compute='_compute_progress', store=True)
-    progress = fields.Float(string='Progress', compute='_compute_progress', store=True, group_operator="avg")
+    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Tareas')
+    subtasks_count = fields.Integer(string='Numero de Tareas', compute='_compute_progress', store=True)
+    completed_subtasks = fields.Integer(string='Tareas Completadas', compute='_compute_progress', store=True)
+    total_subtasks = fields.Integer(string='Total de Tareas', compute='_compute_progress', store=True)
+    progress = fields.Float(string='Progreso', compute='_compute_progress', store=True, group_operator="avg")
     # --------------------------------------------
     # DYNAMIC FIELDS CONFIGURATION
     # --------------------------------------------
-    apply_to_specific_task = fields.Boolean(string='Apply to Specific Task')
-    dynamic_field_name = fields.Char(string='Technical Name')
-    dynamic_field_label = fields.Char(string='Display Label')
+    apply_to_specific_task = fields.Boolean(string='Aplicar solo en este grupo')
+    dynamic_field_name = fields.Char(string='Nombre', invisible="1")
+    dynamic_field_label = fields.Char(string='Nombre del Campo' )
     dynamic_field_type = fields.Selection([
         ('char', 'Text'),
         ('text', 'Long Text'),
@@ -81,12 +81,11 @@ class TaskBoard(models.Model):
         compute='_compute_has_dynamic_fields',
         store=False  # No necesitamos almacenarlo, se calcula dinámicamente
     )
-
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
     def action_save(self):
-        return True  # Odoo guardará automáticamente los cambios si el método retorna True
+        return True  
     def _compute_has_dynamic_fields(self):
         """Compute si hay campos dinámicos para mostrar la sección"""
         dynamic_fields = self.env['ir.model.fields'].search([
@@ -116,19 +115,15 @@ class TaskBoard(models.Model):
     
     @api.depends('state')
     def _compute_color_from_state(self):
+        color_mapping = {
+            'new': 2,      # Amarillo
+            'in_progress': 5,  # Naranja
+            'done': 10,     # Verde
+            'stuck': 1,     # Rojo
+            'view_subtasks': 4  # Azul claro
+        }
         for task in self:
-            if task.state == 'new':
-                task.color = 2  # Yellow
-            elif task.state == 'in_progress':
-                task.color = 5  # Orange
-            elif task.state == 'done':
-                task.color = 10  # Green
-            elif task.state == 'stuck':
-                task.color = 1  # Red
-            elif task.state == 'view_subtasks':
-                task.color = 4  # Light blue
-            else:
-                task.color = 0  # Default
+            task.color = color_mapping.get(task.state, 0)  # 0 es el valor por defecto
     
     @api.depends('department_id')
     def _compute_allowed_members(self):
@@ -548,7 +543,7 @@ class TaskBoard(models.Model):
             arch = f"""
             <data>
                 <!-- Añadir encabezado de columna -->
-                <xpath expr="//table[@class='kanban_table']/thead/tr/th[.='Due Date']" position="after">
+                <xpath expr="//table[@class='kanban_table']/thead/tr/th[.='Fecha']" position="after">
                     <th {t_if_condition}>{field_label}</th>
                 </xpath>
                 

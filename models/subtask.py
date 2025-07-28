@@ -10,21 +10,21 @@ class SubtaskBoard(models.Model):
     sequence = fields.Integer(string='Sequence', default=10)
     completion_date = fields.Datetime(string="Timeline")
     drag = fields.Integer()
-    files = fields.Many2many(comodel_name="ir.attachment", string="Files")
-    name = fields.Char('Subtask Name', required=True)
-    task_id = fields.Many2one('task.board', string='Task', required=True)
-    state = fields.Selection(STATES, default="new", string="State")
+    files = fields.Many2many(comodel_name="ir.attachment", string="Archivos")
+    name = fields.Char('Nombre de la Tarea', required=True)
+    task_id = fields.Many2one('task.board', string='Tarea', required=True)
+    state = fields.Selection(STATES, default="new", string="Estado")
     person = fields.Many2one(
         'hr.employee', 
-        string='Assigned To', 
+        string='Responsable', 
         tracking=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
-    activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Actividades')
+    activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Subtareas')
     # Campo computado para el dominio
     allowed_member_ids = fields.Many2many(
         'hr.employee',
-        string='Allowed Members',
+        string='Miembros',
         compute='_compute_allowed_member_ids',
         help="Members of the parent task's department"
     )

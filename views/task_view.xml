@@ -10,29 +10,29 @@
                     <sheet>
                         <group>
                             <group>
-                                <field name="name" string="Task Name"/>
+                                <field name="name" string="Nombre del Grupo"/>
                                 <field name="allowed_member_ids" invisible="1"/>
-                                <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
-                                <field name="state" widget="selection" string="Status"/>
-                                <field name="completion_date" string="Due Date"/>
-                                <field name="files" widget="many2many_binary" string="Attachments"/>
+                                <field name="person" widget="many2one_avatar_user" string="Responsable"/>
+                                <field name="state" widget="selection" string="Estado"/>
+                                <field name="completion_date" string="Fecha"/>
+                                <field name="files" widget="many2many_binary" string="Archivos"/>
                                 <field name="has_dynamic_fields" invisible="1"/>
                             </group>
                         </group>
                         <notebook>
-                            <page string="Subtask">
+                            <page string="Tareas">
                                 <field name="subtask_ids">
                                     <tree class="o_tree_view"
                                           decoration-danger="state == 'stuck'"
                                           decoration-warning="state == 'new'"
                                           decoration-info="state == 'in_progress'"
                                           decoration-success="state == 'done'">
-                                        <field name="drag" widget="handle" string="Sequence"/>
-                                        <field name="name" string="Task Name"/>
-                                        <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
-                                        <field name="state" widget="selection" string="Status"/>
-                                        <field name="completion_date" widget="daterange" string="Due Date"/>
-                                        <button type="object" name="action_open_activity_tree" icon="fa-list" string="View Details"/>
+                                        <field name="drag" widget="handle" string="Sequencia"/>
+                                        <field name="name" string="Nombre del Grupo"/>
+                                        <field name="person" widget="many2one_avatar_user" string="Responsable"/>
+                                        <field name="state" widget="selection" string="Estado"/>
+                                        <field name="completion_date" widget="daterange" string="Fecha"/>
+                                        <button type="object" name="action_open_activity_tree" icon="fa-list" string="Ver Subtareas"/>
                                     </tree>
                                 </field>
                             </page>
@@ -54,26 +54,23 @@
                 <form string="Edit Task">
                     <sheet>
                         <group>
-                            <field name="name" string="Task Name"/>
+                            <field name="name" string="nombre del Grupo"/>
                             <field name="allowed_member_ids" invisible="1"/>
-                            <field name="person" string="Assigned To" widget="many2one_avatar_user"/>
-                            <field name="state" string="Status"/>
-                            <field name="progress" string="Progress"/>
+                            <field name="person" string="Responsable" widget="many2one_avatar_user"/>
+                            <field name="state" string="Estado"/>
+                            <field name="progress" string="Progreso"/>
                             <field name="completed_subtasks" string="Completed Subtasks"/>
                             <field name="total_subtasks" string="Total Subtasks"/>
-                            <field name="completion_date" string="Due Date" widget="date"/>
+                            <field name="completion_date" string="Fecha" widget="date"/>
                             <field name="show_subtasks" string="Show Subtasks"/>
                             <field name="has_dynamic_fields" invisible="1"/>
-                            
-                            <!-- Sección para campos dinámicos -->
                             <group string="Dynamic Fields" attrs="{'invisible': [('has_dynamic_fields', '=', False)]}">
-                                <!-- Los campos se agregarán dinámicamente -->
                             </group>
                         </group>
                     </sheet>
                     <footer>
                         <button name="action_save" string="Guardar" type="object" class="btn-primary"/>
-                        <button string="Cancel" special="cancel" class="btn-secondary"/>
+                        <button string="Cancelar" special="cancel" class="btn-secondary"/>
                     </footer>
                 </form>
             </field>
@@ -84,47 +81,43 @@
             <field name="name">task.board.dynamic.fields.form</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
-                <form string="Add Dynamic Field">
+                <form>
                     <sheet>
                         <group>
                             <field name="name" 
-                                   string="Task Name" 
+                                   string="Nombre del Grupo" 
                                    attrs="{'invisible': [('apply_to_specific_task','=',False)]}"
                                    help="Select specific task for this field"/>
 
                             <field name="apply_to_specific_task" 
-                                   string="Apply to specific task" 
+                                   string="Agregar a este grupo" 
                                    widget="boolean"/>
 
                             <field name="dynamic_field_name" 
-                                   string="Technical Name" 
-                                   required="1"
-                                   help="Internal field name (e.g. x_priority)"/>
+                                string="Nombre Tecnico" 
+                                readonly="1"
+                                invisible="1"
+                                help="Internal field name (e.g. x_priority)"/>
                         
                             <field name="dynamic_field_label" 
-                                   string="Display Label" 
+                                   string="Nombre del Campo" 
                                    required="1"
                                    help="Label visible to users"/>
                         
                             <field name="dynamic_field_type" 
-                                   string="Field Type" 
+                                   string="Tipo de Campo" 
                                    required="1"
                                    widget="radio"
                                    options="{'horizontal': true}"/>
                         
-                            <field name="selection_options" 
-                                   string="Options (key:value format)"
-                                   attrs="{'required': [('dynamic_field_type','=','selection')], 
-                                          'invisible': [('dynamic_field_type','!=','selection')]}"
-                                   help="One option per line. Example:\nhigh:High Priority\nmedium:Medium Priority\nlow:Low Priority"/>
                         </group>
                     </sheet>
                     <footer>
                         <button name="action_create_dynamic_field" 
-                                string="Create Field" 
+                                string="Guardar" 
                                 type="object" 
                                 class="btn-primary"/>
-                        <button string="Cancel" 
+                        <button string="Cancelar" 
                                 special="cancel" 
                                 class="btn-secondary"/>
                     </footer>
@@ -137,17 +130,17 @@
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree string="Subtasks" 
+                <tree string="Tareas" 
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
-                    <field name="sequence" widget="handle" string="Seq"/>
-                    <field name="name" string="Task Name"/>
-                    <field name="person" widget="many2one_avatar_user" string="Assigned To"/>
-                    <field name="state" widget="selection" string="Status"/>
-                    <field name="completion_date" widget="daterange" string="Due Date"/>
-                    <button name="action_open_activity_tree" type="object" icon="fa-list" string="View"/>
+                    <field name="sequence" widget="handle" string="Secuencia"/>
+                    <field name="name" string="Nombre"/>
+                    <field name="person" widget="many2one_avatar_user" string="Responsable"/>
+                    <field name="state" widget="selection" string="Estado"/>
+                    <field name="completion_date" widget="daterange" string="Fecha"/>
+                    <button name="action_open_activity_tree" type="object" icon="fa-eye" string="Ver Subtareas"/>
                 </tree>
             </field>
         </record>
@@ -158,7 +151,7 @@
             <field name="model">task.board</field>
             <field name="priority">10</field>
             <field name="arch" type="xml">
-                <kanban edit="true" default_group_by="show_subtasks" class="o_kanban_full_width">
+                <kanban edit="true" default_group_by="show_subtasks" style="background: transparent;" class="o_kanban_full_width">
                     <field name="id"/>
                     <field name="name"/>
                     <field name="person"/>
@@ -169,29 +162,32 @@
                     <field name="completion_date"/>
                     <field name="show_subtasks"/>
                     <field name="has_dynamic_fields" invisible="1"/>
-                   
                     <templates>
                         <t t-name="kanban-box">
-                            <div class="oe_kanban_global_click">
+                            <div class="oe_kanban_global_click o_kanban_record" style="background: transparent;">
                                 <div class="o_kanban_record">
                                     <div class="kanban_header">
                                         <strong><field name="name"/></strong>
-                                        <button type="object" name="action_open_edit_form" string="Edit" class="btn btn-sm btn-link float-right" icon="fa-pencil"/>
+                                        <button type="object" name="action_open_edit_form" string="Editar" class="btn btn-sm btn-link float-right" icon="fa-pencil"/>
                                     </div>
                                     <table class="kanban_table">
                                         <thead>
                                             <tr>
-                                                <th class="o_form_label">Asignado a</th>
+                                                <th class="o_form_label">Responsable</th>
                                                 <th class="o_form_label">Estado</th>
                                                 <th class="o_form_label">Progreso</th>
-                                                <th class="o_form_label">Due Date</th>
-                                                <th class="o_form_label">Acciones</th>
+                                                <th class="o_form_label">Fecha</th>
+                                                <th class="o_form_label">Opciones</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
+                                        <tbody style="background: transparent;">
                                             <tr>
                                                 <td><field name="person" widget="many2one_avatar_user"/></td>
-                                                <td><field name="state" widget="badge"/></td>
+                                                <td>
+                                                    <div t-attf-class="state_badge state_badge_{{record.state.value}}">
+                                                        <field name="state" widget="badge"/>
+                                                    </div>
+                                                </td>
                                                 <td>
                                                     <field name="progress" widget="progressbar" options="{'editable': true, 'input_type': 'number'}"/>
                                                     <small><field name="completed_subtasks"/>/<field name="total_subtasks"/></small>
@@ -209,41 +205,44 @@
                                     </table>
                                 </div>
                             </div>
-                            <style>
-                                .o_kanban_dashboard .o_kanban_record {
-                                    width: 100%;
+                           <style>
+                                .o_kanban_record {
                                     min-width: 450px;
-                                    margin-bottom: 16px;
+                                    margin: 8px;
+                                    padding: 0 !important;      
+                                    background: transparent !important; 
+                                    box-shadow: none !important; 
+                                    border: none !important;     
                                 }
+
+                                
                                 .kanban_table {
-                                    width: 100%;
-                                    border-collapse: collapse;
+                                    width: 600%;
+                                    border-collapse: collapse;  
+                                    background: white;  
                                 }
-                                .kanban_table th, .kanban_table td {
+
+                                
+                                .kanban_table th,
+                                .kanban_table td {
+                                    border: 1px solid #dee2e6 !important; 
                                     padding: 8px;
-                                    border: 1px solid #dee2e6;
                                 }
+
+                                
                                 .kanban_table th {
-                                    background-color: #f8f9fa;
-                                    text-align: left;
+                                    background-color: #f8f9fa !important;
                                 }
-                                .kanban_actions button {
-                                    margin: 0 2px;
-                                }
-                                .o_form_label {
-                                    font-weight: normal;
-                                    margin-bottom: 0;
-                                }
+
                                 .kanban_header {
-                                    display: flex;
-                                    justify-content: space-between;
-                                    align-items: center;
-                                    padding: 8px;
-                                    background-color: #f8f9fa;
-                                    border-bottom: 1px solid #dee2e6;
+                                    font-size: 16px;
+                                    font-weight: bold;
+                                    border: none !important;   
+                                    padding: 0 0 8px 0;
+                                    background: transparent !important;
                                 }
                             </style>
-                        </t>
+                        </t> 
                     </templates>
                 </kanban>
             </field>
