@@ -20,7 +20,12 @@ class TaskBoard(models.Model):
     name = fields.Char(string='Task Name', required=True, tracking=True)
     sequence = fields.Integer(string='Sequence', default=10)
     completion_date = fields.Datetime(string='Due Date')
-    department_id = fields.Many2one('boards.planner', string='Department', ondelete='cascade')
+    department_id = fields.Many2one(
+    'boards.planner', 
+    string='Departamento', 
+    ondelete='cascade',
+    domain="[]"
+    )
     person = fields.Many2one(
         'hr.employee',
         string='Assigned To',
@@ -76,7 +81,7 @@ class TaskBoard(models.Model):
         compute='_compute_has_dynamic_fields',
         store=False  # No necesitamos almacenarlo, se calcula dinámicamente
     )
-    
+
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
@@ -128,7 +133,10 @@ class TaskBoard(models.Model):
     @api.depends('department_id')
     def _compute_allowed_members(self):
         for task in self:
-            task.allowed_member_ids = task.department_id.member_ids
+            if task.department_id and task.department_id.pick_from_dept:
+                task.allowed_member_ids = task.department_id.member_ids
+            else:
+                task.allowed_member_ids = self.env['hr.employee'].search([])
 
     @api.depends('dynamic_fields_data')
     def _compute_dynamic_fields(self):
