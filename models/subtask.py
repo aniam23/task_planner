@@ -11,23 +11,27 @@ class SubtaskBoard(models.Model):
     completion_date = fields.Datetime(string="Timeline")
     drag = fields.Integer()
     files = fields.Many2many(comodel_name="ir.attachment", string="Archivos")
-    name = fields.Char('Nombre de la Tarea', required=True)
+    name = fields.Char(string='Nombre de la tarea', required=True)
     task_id = fields.Many2one('task.board', string='Tarea', required=True)
     state = fields.Selection(STATES, default="new", string="Estado")
+    
+    # Cambiamos a related field en lugar de computed para disponibilidad inmediata
+    allowed_member_ids = fields.Many2many(
+        'hr.employee',
+        string='Miembros permitidos',
+        # related='task_id.allowed_member_ids',
+        readonly=True,
+        compute='compute_allowed_member_ids'
+    )
+    
     person = fields.Many2one(
         'hr.employee', 
         string='Responsable', 
         tracking=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
+    
     activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Subtareas')
-    # Campo computado para el dominio
-    allowed_member_ids = fields.Many2many(
-        'hr.employee',
-        string='Miembros',
-        compute='_compute_allowed_member_ids',
-        help="Members of the parent task's department"
-    )
     
     def action_open_activity_tree(self):
         self.ensure_one()
@@ -42,25 +46,20 @@ class SubtaskBoard(models.Model):
             }
         }
 
-    @api.depends('task_id.department_id.member_ids')
-    def _compute_allowed_member_ids(self):
-        for subtask in self:
-            if subtask.task_id and subtask.task_id.department_id:
-                subtask.allowed_member_ids = subtask.task_id.department_id.member_ids
-            else:
-                subtask.allowed_member_ids = False
-
     @api.constrains('person', 'task_id')
     def _check_person_selection(self):
         for subtask in self:
-            # Verifica si el task_id existe y tiene department_id
             if subtask.task_id and subtask.task_id.department_id:
-                # Verifica si pick_from_dept existe y es True, o si no existe el campo
                 pick_from_dept = getattr(subtask.task_id, 'pick_from_dept', True)
-                if pick_from_dept:  # Si es True o el campo no existe
+                if pick_from_dept:
                     if subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids:
                         raise ValidationError(
-                        "El empleado asignado debe ser miembro del departamento de la tarea principal"
-                    )
+                            "El empleado asignado debe ser miembro del departamento de la tarea principal"
+                        )
+    @api.depends('task_id')
+    def compute_allowed_member_ids(self):
+        self.allowed_member_ids = self.task_id.allowed_member_ids
 
-    
+   
+
+ 

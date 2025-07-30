@@ -654,72 +654,149 @@ class TaskBoard(models.Model):
     # FIELD REMOVAL METHODS
     # --------------------------------------------
     def action_remove_dynamic_field(self):
-        """Remove a dynamic field completely"""
+        """Remove a dynamic field completely - Versión corregida"""
         self.ensure_one()
-        
         if not self.dynamic_field_name:
             raise UserError(_("Please specify the field name to remove"))
-        
         field_name = self._generate_valid_field_name(self.dynamic_field_name)
-        
         try:
-            self._remove_field_artifacts(field_name)
-            return {'type': 'ir.actions.client', 'tag': 'reload'}
+            # 1. Forzar limpieza de caché inicial
+            self._ultimate_cache_cleanup()
+            # 2. Eliminar todas las vistas asociadas (incluyendo posibles duplicados)
+            self._remove_all_field_views(field_name)
+            # 3. Eliminar la definición del campo
+            self._remove_field_definition(field_name)
+            # 4. Eliminar metadatos
+            self._remove_field_metadata(field_name)
+            # 5. Eliminar columna de la base de datos
+            self._safe_remove_column(field_name)
+            # 6. Limpieza final de caché
+            self._ultimate_cache_cleanup()
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'reload',
+                'params': {'wait': True}
+            }
         except Exception as e:
             _logger.error("Error removing field %s: %s", field_name, str(e))
             raise UserError(_("Error removing field: %s") % str(e))
-    
+
+    def _remove_all_field_views(self, field_name):
+        """Versión alternativa más agresiva"""
+        try:
+            # Eliminar todas las vistas que mencionen el campo en su nombre
+            self.env['ir.ui.view'].search([
+                ('model', '=', self._name),
+                ('name', 'ilike', field_name)
+            ]).unlink()
+            
+            # Buscar y eliminar cualquier vista personalizada relacionada
+            # Esto puede variar según la versión de Odoo
+            if 'ir.ui.view.custom' in self.env:
+                self.env['ir.ui.view.custom'].search([
+                    ('user_id', '=', self.env.uid)
+                ]).unlink()
+                
+        except Exception as e:
+            _logger.error("Alternative view removal failed: %s", str(e))
+            # Si falla, al menos registrar el error pero continuar
+
     def _remove_field_artifacts(self, field_name):
         """Elimina todos los rastros del campo, incluyendo vistas específicas"""
         try:
-            # Eliminar vistas específicas primero
+            # 1. Eliminar todas las vistas asociadas al campo, no solo las kanban
             views = self.env['ir.ui.view'].search([
-                ('name', 'like', f'{self._name}.kanban.dynamic.{field_name}%'),
+                ('name', 'like', f'{self._name}.%.{field_name}%'),
                 ('model', '=', self._name)
             ])
-            views.unlink()
-
-            # Resto de la limpieza (metadata, definición de campo, etc.)
+            if views:
+                views.unlink()
+            # 2. Eliminar metadatos del campo
             self._remove_field_metadata(field_name)
-            self._remove_field_definition(field_name)
+            # 3. Eliminar definición del campo (intentar primero por ORM, luego por SQL)
+            field = self.env['ir.model.fields'].sudo().search([
+                ('model', '=', self._name),
+                ('name', '=', field_name)
+            ], limit=1)
+
+            if field:
+                try:
+                    field.unlink()
+                except Exception as e:
+                    _logger.warning("Could not unlink field via ORM, trying SQL: %s", str(e))
+                    self.env.cr.execute("""
+                        DELETE FROM ir_model_fields
+                        WHERE model = %s AND name = %s
+                    """, [self._name, field_name])
+
+            # 4. Eliminar columna de la base de datos
             self._safe_remove_column(field_name)
 
-            # Limpieza final de caché
+            # 5. Limpieza final de caché
             self._ultimate_cache_cleanup()
+
         except Exception as e:
-            _logger.error("Error en limpieza: %s", str(e))
-            raise
+            _logger.error("Error en limpieza completa de campo %s: %s", field_name, str(e))
+            raise UserError(_("Error completo al eliminar campo: %s") % str(e))
 
     def _remove_field_metadata(self, field_name):
-        """Remove field from stored JSON data"""
-        self.ensure_one()
-        
-        if not self.dynamic_fields_data:
-            return
-            
+        """Remove field from stored JSON data for all records"""
         try:
-            data = json.loads(self.dynamic_fields_data)
-            if field_name in data:
-                del data[field_name]
-                self.dynamic_fields_data = json.dumps(data)
-        except Exception:
-            pass
+            tasks_with_data = self.search([('dynamic_fields_data', '!=', False)])
+            for task in tasks_with_data:
+                if task.dynamic_fields_data:
+                    try:
+                        data = json.loads(task.dynamic_fields_data)
+                        if field_name in data:
+                            del data[field_name]
+                            task.dynamic_fields_data = json.dumps(data)
+                    except json.JSONDecodeError:
+                        # Si hay datos corruptos, limpiar el campo completamente
+                        task.dynamic_fields_data = False
+        except Exception as e:
+            _logger.error("Error removing field metadata: %s", str(e))
+            raise
     
     def _remove_field_definition(self, field_name):
-        """Remove the field from ir.model.fields"""
-        field = self.env['ir.model.fields'].search([
-            ('model', '=', self._name),
-            ('name', '=', field_name)
-        ], limit=1)
-        
-        if field:
+        """Elimina la definición del campo de manera más robusta"""
+        max_attempts = 3
+        for attempt in range(max_attempts):
             try:
-                field.unlink()
-            except Exception:
-                self.env.cr.execute("""
-                    DELETE FROM ir_model_fields
-                    WHERE model = %s AND name = %s
-                """, [self._name, field_name])
+                # Buscar el campo con sudo para evitar problemas de permisos
+                field = self.env['ir.model.fields'].sudo().search([
+                    ('model', '=', self._name),
+                    ('name', '=', field_name)
+                ], limit=1)
+
+                if field:
+                    # Primero intentar eliminar traducciones asociadas
+                    self.env['ir.translation'].sudo().search([
+                        ('name', '=', 'ir.model.fields,field_description'),
+                        ('res_id', '=', field.id)
+                    ]).unlink()
+
+                    # Luego eliminar el campo
+                    field.unlink()
+
+                    # Verificar que realmente se eliminó
+                    if self.env['ir.model.fields'].sudo().search([('id', '=', field.id)], count=True):
+                        raise Exception("Field still exists after unlink")
+
+                    return True
+
+                return False
+
+            except Exception as e:
+                if attempt == max_attempts - 1:
+                    _logger.error("Failed to remove field definition after %s attempts: %s", max_attempts, str(e))
+                    # Último intento: eliminación directa por SQL
+                    self.env.cr.execute("""
+                        DELETE FROM ir_model_fields
+                        WHERE model = %s AND name = %s
+                    """, [self._name, field_name])
+                    self.env.cr.commit()
+                else:
+                    time.sleep(0.5 * (attempt + 1))
     
     def _remove_field_from_views(self, field_name):
         """Remove all references to field in views"""
@@ -782,33 +859,35 @@ class TaskBoard(models.Model):
     # CACHE METHODS
     # --------------------------------------------
     def _ultimate_cache_cleanup(self):
-        """Limpieza de caché más efectiva"""
+        """Limpieza de caché más completa y efectiva"""
         try:
-            # 1. Invalidar cachés de modelos
+            # 1. Invalidar todas las cachés
             self.env.invalidate_all()
 
             # 2. Limpiar caché del registro
             if hasattr(self.env.registry, '_clear_cache'):
                 self.env.registry._clear_cache()
 
-            # 3. Limpiar caché de vistas
-            self.env['ir.ui.view'].clear_caches()
+            # 3. Limpiar caché de vistas específicamente
+            if hasattr(self.env.registry, '_clear_view_cache'):
+                self.env.registry._clear_view_cache()
 
-            # 4. Limpiar caché de traducciones
-            if 'ir.translation' in self.env:
-                self.env['ir.translation'].clear_caches()
-
-            # 5. Regenerar assets
+            # 4. Limpiar caché de assets
             if 'ir.asset' in self.env:
                 self.env['ir.asset']._generate_assets()
 
-            # 6. Forzar recarga de campos
+            # 5. Limpiar caché de campos calculados
             self.env.registry.setup_models(self.env.cr)
 
-            return True
+            # 6. Forzar recarga de la vista
+            self.env['ir.ui.view'].clear_caches()
+
+            # 7. Recargar el modelo en el registro
+            if self._name in self.env.registry.models:
+                self.env.registry.init_models(self.env.cr, [self._name], {'module': self._module or 'task_planner'})
+
         except Exception as e:
-            _logger.error("Error en limpieza de caché: %s", str(e))
-            return False
+            _logger.error("Error in ultimate cache cleanup: %s", str(e))
 
     # --------------------------------------------
     # ACTION METHODS
@@ -922,26 +1001,29 @@ class TaskBoard(models.Model):
     # --------------------------------------------
     # CONSTRAINTS AND VALIDATION
     # --------------------------------------------
-    @api.constrains('person', 'department_id')
-    def _check_person_in_department(self):
-        for task in self:
-            if task.department_id and task.person not in task.department_id.member_ids:
-                raise ValidationError(_(
-                    "The assigned employee doesn't belong to the selected department. "
-                    "Valid members: %s") % ", ".join(task.department_id.member_ids.mapped('name')))
-
-    # --------------------------------------------
-    # CRUD OVERRIDES
-    # --------------------------------------------
+    
+    @api.onchange('person', 'department_id')
+    def _onchange_validate_employee_department(self):
+        if self.person and self.department_id:
+            if self.person.department_id != self.department_id:
+                raise ValidationError(_("El empleado no pertenece al departamento seleccionado."))
+    
     @api.model
     def create(self, vals):
-        """Override create to check department assignment"""
-        task = super().create(vals)
-        task._check_person_in_department()
-        return task
-    
+        person_id = vals.get('person')
+        department_id = vals.get('department_id')
+        if person_id and department_id:
+            employee = self.env['hr.employee'].browse(person_id)
+            if not employee.exists() or employee.department_id.id != department_id:
+                raise ValidationError(_("El empleado no pertenece al departamento seleccionado."))
+        return super().create(vals)
+
     def write(self, vals):
-        """Override write to check department assignment"""
-        res = super().write(vals)
-        self._check_person_in_department()
-        return res
+        for record in self:
+            person_id = vals.get('person', record.person.id)
+            department_id = vals.get('department_id', record.department_id.id)
+            if person_id and department_id:
+                employee = self.env['hr.employee'].browse(person_id)
+                if not employee.exists() or employee.department_id.id != department_id:
+                    raise ValidationError(_("El empleado no pertenece al departamento seleccionado."))
+        return super().write(vals)

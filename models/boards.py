@@ -16,7 +16,7 @@ class Boards(models.Model):
     responsible_person_id = fields.Many2one('hr.employee', related='department_id.manager_id')
     pick_from_dept = fields.Boolean('Solo miembros del departamento')
     member_ids = fields.Many2many('hr.employee', string='Miembros')
-    task_ids = fields.One2many('task.board', 'department_id', invisible=1)
+    task_ids = fields.One2many('task.board', 'department_id', invisible=1,string='Grupos')
 
     def delete_cards(self):
         employee = self.env.user.employee_id

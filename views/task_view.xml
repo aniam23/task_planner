@@ -10,7 +10,7 @@
                     <sheet>
                         <group>
                             <group>
-                                <field name="name" string="Nombre del Grupo"/>
+                                <field name="name" string="Nombre de la Tarea"/>
                                 <field name="allowed_member_ids" invisible="1"/>
                                 <field name="person" widget="many2one_avatar_user" string="Responsable"/>
                                 <field name="state" widget="selection" string="Estado"/>
@@ -28,7 +28,7 @@
                                           decoration-info="state == 'in_progress'"
                                           decoration-success="state == 'done'">
                                         <field name="drag" widget="handle" string="Sequencia"/>
-                                        <field name="name" string="Nombre del Grupo"/>
+                                        <field name="name" string="Nombre de La Tarea"/>
                                         <field name="person" widget="many2one_avatar_user" string="Responsable"/>
                                         <field name="state" widget="selection" string="Estado"/>
                                         <field name="completion_date" widget="daterange" string="Fecha"/>
@@ -54,9 +54,9 @@
                 <form string="Edit Task">
                     <sheet>
                         <group>
-                            <field name="name" string="nombre del Grupo"/>
+                            <field name="name" string="Nombre de la Tarea"/>
                             <field name="allowed_member_ids" invisible="1"/>
-                            <field name="person" string="Responsable" widget="many2one_avatar_user"/>
+                            <field name="person" string="Responsable" widget="many2one_avatar_user" context="{'search_default_active_employee': 1}"/>
                             <field name="state" string="Estado"/>
                             <field name="progress" string="Progreso"/>
                             <field name="completed_subtasks" string="Completed Subtasks"/>
@@ -85,7 +85,7 @@
                     <sheet>
                         <group>
                             <field name="name" 
-                                   string="Nombre del Grupo" 
+                                   string="Nombre de la Tarea"
                                    attrs="{'invisible': [('apply_to_specific_task','=',False)]}"
                                    help="Select specific task for this field"/>
 
@@ -95,8 +95,6 @@
 
                             <field name="dynamic_field_name" 
                                 string="Nombre Tecnico" 
-                                readonly="1"
-                                invisible="1"
                                 help="Internal field name (e.g. x_priority)"/>
                         
                             <field name="dynamic_field_label" 
@@ -124,7 +122,6 @@
                 </form>
             </field>
         </record>
- 
         <!-- Vista de árbol para subtareas -->
         <record id="view_subtask_tree" model="ir.ui.view">
             <field name="name">subtask.board.tree</field>
@@ -136,8 +133,8 @@
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia"/>
-                    <field name="name" string="Nombre"/>
-                    <field name="person" widget="many2one_avatar_user" string="Responsable"/>
+                    <field name="name" string="Nombre de la tarea"/>
+                    <field name="person" widget="many2one_avatar_user" string="Responsable" context="{'search_default_active_employee': 1}"/>
                     <field name="state" widget="selection" string="Estado"/>
                     <field name="completion_date" widget="daterange" string="Fecha"/>
                     <button name="action_open_activity_tree" type="object" icon="fa-eye" string="Ver Subtareas"/>
@@ -206,6 +203,29 @@
                                 </div>
                             </div>
                            <style>
+
+                                .o_kanban_group[data-name="drag"] .o_kanban_group_title {
+                                color: transparent !important;
+                                font-size: 0 !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                height: 0 !important;
+                                }
+
+                                .o_kanban_group .o_kanban_group_title {
+                                color: transparent !important;
+                                font-size: 0 !important;
+                                line-height: 0 !important;
+                                height: 0 !important;
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                overflow: hidden !important;
+                                }
+
+                                /* Opcional: Ajusta el espaciado del grupo */
+                                .o_kanban_group {
+                                    padding-top: 4px !important;
+                                }
                                 .o_kanban_record {
                                     min-width: 450px;
                                     margin: 8px;
@@ -215,21 +235,18 @@
                                     border: none !important;     
                                 }
 
-                                
                                 .kanban_table {
                                     width: 600%;
                                     border-collapse: collapse;  
                                     background: white;  
                                 }
 
-                                
                                 .kanban_table th,
                                 .kanban_table td {
                                     border: 1px solid #dee2e6 !important; 
                                     padding: 8px;
                                 }
 
-                                
                                 .kanban_table th {
                                     background-color: #f8f9fa !important;
                                 }
@@ -241,6 +258,7 @@
                                     padding: 0 0 8px 0;
                                     background: transparent !important;
                                 }
+
                             </style>
                         </t> 
                     </templates>
