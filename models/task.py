@@ -1011,7 +1011,7 @@ class TaskBoard(models.Model):
             'target': 'current',
             'flags': {'mode': 'readonly'} if self.state == 'done' else {}
         }
-
+  
     # --------------------------------------------
     # CONSTRAINTS AND VALIDATION
     # --------------------------------------------

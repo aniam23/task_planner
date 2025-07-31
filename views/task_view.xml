@@ -51,23 +51,44 @@
             <field name="name">task.board.form</field>
             <field name="model">task.board</field>
             <field name="arch" type="xml">
-                <form string="Edit Task">
+                <form string="Editar Tarea">
                     <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" string="Nombre" placeholder="Ingrese el nombre de la tarea"/>
+                            </h1>
+                        </div>
+                        
                         <group>
-                            <field name="name" string="Nombre de la Tarea"/>
+                            <!-- Sección 1: Información básica -->
+                            <group string="Información Básica" col="4">
+                                <field name="person" string="Responsable" 
+                                       widget="many2one_avatar_user"
+                                       options="{'no_open': True}"
+                                       context="{'search_default_active_employee': 1}"/>
+                                <field name="state" string="Estado"/>
+                                <field name="completion_date" string="Fecha Límite" widget="date"/>
+                            </group>
+                        
+                            <!-- Sección 2: Progreso -->
+                            <group string="Progreso" col="4">
+                                <field name="progress" string="Progreso (%)" widget="progressbar" options="{'edit': true}"/>
+                                <field name="completed_subtasks" string="Subtareas completadas"/>
+                                <field name="total_subtasks" string="Total subtareas"/>
+                                <field name="show_subtasks" string="Mostrar subtareas"/>
+                            </group>
+                            
+                            <!-- Campos ocultos necesarios -->
                             <field name="allowed_member_ids" invisible="1"/>
-                            <field name="person" string="Responsable" widget="many2one_avatar_user" context="{'search_default_active_employee': 1}"/>
-                            <field name="state" string="Estado"/>
-                            <field name="progress" string="Progreso"/>
-                            <field name="completed_subtasks" string="Completed Subtasks"/>
-                            <field name="total_subtasks" string="Total Subtasks"/>
-                            <field name="completion_date" string="Fecha" widget="date"/>
-                            <field name="show_subtasks" string="Show Subtasks"/>
                             <field name="has_dynamic_fields" invisible="1"/>
-                            <group string="Dynamic Fields" attrs="{'invisible': [('has_dynamic_fields', '=', False)]}">
+                            
+                            <!-- Sección dinámica -->
+                            <group string="Campos Adicionales" attrs="{'invisible': [('has_dynamic_fields', '=', False)]}" col="4">
+                                <!-- Espacio para campos dinámicos -->
                             </group>
                         </group>
                     </sheet>
+                    
                     <footer>
                         <button name="action_save" string="Guardar" type="object" class="btn-primary"/>
                         <button string="Cancelar" special="cancel" class="btn-secondary"/>
