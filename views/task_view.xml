@@ -27,7 +27,7 @@
                                           decoration-warning="state == 'new'"
                                           decoration-info="state == 'in_progress'"
                                           decoration-success="state == 'done'">
-                                        <field name="drag" widget="handle" string="Sequencia"/>
+                                       
                                         <field name="name" string="Nombre de La Tarea"/>
                                         <field name="person" widget="many2one_avatar_user" string="Responsable"/>
                                         <field name="state" widget="selection" string="Estado"/>
@@ -127,18 +127,24 @@
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree string="Tareas" 
+                <tree create="false" string="Tareas" 
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia"/>
                     <field name="name" string="Nombre de la tarea"/>
-                    <field name="person" widget="many2one_avatar_user" string="Responsable" context="{'search_default_active_employee': 1}"/>
+                    <field name="person" widget="many2one_avatar_user" string="Responsable"  context="{'search_default_allowed_member_ids': True}"/>
                     <field name="state" widget="selection" string="Estado"/>
                     <field name="completion_date" widget="daterange" string="Fecha"/>
                     <button name="action_open_activity_tree" type="object" icon="fa-eye" string="Ver Subtareas"/>
+                
                 </tree>
+                <button name="action_custom_create_subtask" 
+                    type="object" 
+                    string="Nueva Tarea" 
+                    class="btn-primary" 
+                    icon="fa-plus"/>
             </field>
         </record>
 
@@ -148,7 +154,7 @@
             <field name="model">task.board</field>
             <field name="priority">10</field>
             <field name="arch" type="xml">
-                <kanban edit="true" default_group_by="show_subtasks" style="background: transparent;" class="o_kanban_full_width">
+                <kanban create="false" edit="true" default_group_by="show_subtasks" style="background: transparent;" class="o_kanban_full_width">
                     <field name="id"/>
                     <field name="name"/>
                     <field name="person"/>
@@ -204,13 +210,7 @@
                             </div>
                            <style>
 
-                                .o_kanban_group[data-name="drag"] .o_kanban_group_title {
-                                color: transparent !important;
-                                font-size: 0 !important;
-                                padding: 0 !important;
-                                margin: 0 !important;
-                                height: 0 !important;
-                                }
+                                
 
                                 .o_kanban_group .o_kanban_group_title {
                                 color: transparent !important;

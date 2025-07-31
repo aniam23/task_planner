@@ -959,21 +959,35 @@ class TaskBoard(models.Model):
             'view_id': self.env.ref('task_planner.view_task_board_dynamic_fields_form').id,
             'target': 'new',
         }
-    
-    def action_view_subtasks(self):
-        """View subtasks action"""
+    def action_custom_create_subtask(self):
+        """Abre el formulario de creación de subtareas con el task_id predefinido"""
         self.ensure_one()
         return {
-            'name': _('Subtasks'),
+            'name': ('Nueva Tarea'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'subtask.board',
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {
+                'default_task_id': self.task_id.id,  
+                'form_view_initial_mode': 'edit',    
+            },
+    }
+
+    def action_view_subtasks(self):
+        """View subtasks action (con el botón personalizado)"""
+        self.ensure_one()
+        return {
+            'name': ('Tareas'),
             'type': 'ir.actions.act_window',
             'res_model': 'subtask.board',
             'view_mode': 'tree,form',
             'domain': [('task_id', '=', self.id)],
             'context': {
-                'default_task_id': self.id,
+                'default_task_id': self.id,  # Asigna la tarea padre al crear
                 'search_default_task_id': self.id,
                 'form_view_initial_mode': 'edit',
-                'create': True
+                'create': False,  # Oculta el botón por defecto
             },
             'target': 'current',
         }
@@ -1002,28 +1016,56 @@ class TaskBoard(models.Model):
     # CONSTRAINTS AND VALIDATION
     # --------------------------------------------
     
-    @api.onchange('person', 'department_id')
-    def _onchange_validate_employee_department(self):
-        if self.person and self.department_id:
-            if self.person.department_id != self.department_id:
-                raise ValidationError(_("El empleado no pertenece al departamento seleccionado."))
-    
     @api.model
     def create(self, vals):
+        # Validación de campos obligatorios
+        if not vals.get('name'):
+            raise ValidationError(_("El nombre de la tarea es obligatorio"))
+        if not vals.get('person'):
+            raise ValidationError(_("Debe asignar un responsable"))
+        if not vals.get('department_id'):
+            raise ValidationError(_("Debe seleccionar un departamento"))
+        
+        # Validación de departamento-empleado
         person_id = vals.get('person')
         department_id = vals.get('department_id')
         if person_id and department_id:
             employee = self.env['hr.employee'].browse(person_id)
-            if not employee.exists() or employee.department_id.id != department_id:
-                raise ValidationError(_("El empleado no pertenece al departamento seleccionado."))
+            if not employee.exists():
+                raise ValidationError(_("El empleado seleccionado no existe"))
+            if employee.department_id.id != department_id:
+                raise ValidationError(_("El empleado no pertenece al departamento seleccionado"))
+        
         return super().create(vals)
 
     def write(self, vals):
+        # Validación al actualizar
         for record in self:
-            person_id = vals.get('person', record.person.id)
-            department_id = vals.get('department_id', record.department_id.id)
-            if person_id and department_id:
-                employee = self.env['hr.employee'].browse(person_id)
-                if not employee.exists() or employee.department_id.id != department_id:
-                    raise ValidationError(_("El empleado no pertenece al departamento seleccionado."))
+            # Verificar si se está modificando el nombre y si está vacío
+            if 'name' in vals and not vals['name']:
+                raise ValidationError(_("El nombre de la tarea no puede estar vacío"))
+            
+            # Obtener valores actuales o nuevos
+            current_person = vals.get('person', record.person.id)
+            current_department = vals.get('department_id', record.department_id.id)
+            
+            # Validar relación empleado-departamento
+            if current_person and current_department:
+                employee = self.env['hr.employee'].browse(current_person)
+                if not employee.exists():
+                    raise ValidationError(_("El empleado seleccionado no existe"))
+                if employee.department_id.id != current_department:
+                    raise ValidationError(_("El empleado no pertenece al departamento seleccionado"))
+        
         return super().write(vals)
+
+    @api.constrains('name', 'person', 'department_id')
+    def _check_required_fields(self):
+        """Validación adicional para integridad de datos"""
+        for record in self:
+            if not record.name:
+                raise ValidationError(_("El nombre de la tarea es obligatorio"))
+            if not record.person:
+                raise ValidationError(_("Debe asignar un responsable"))
+            if not record.department_id:
+                raise ValidationError(_("Debe seleccionar un departamento"))

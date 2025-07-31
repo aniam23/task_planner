@@ -19,7 +19,7 @@ class SubtaskBoard(models.Model):
     allowed_member_ids = fields.Many2many(
         'hr.employee',
         string='Miembros permitidos',
-        # related='task_id.allowed_member_ids',
+        related='task_id.allowed_member_ids',
         readonly=True,
         compute='compute_allowed_member_ids'
     )
@@ -56,6 +56,33 @@ class SubtaskBoard(models.Model):
                         raise ValidationError(
                             "El empleado asignado debe ser miembro del departamento de la tarea principal"
                         )
+
+    def action_custom_create_subtask(self):
+        """Abre formulario para subtarea sin crear registro, pero con valores por defecto"""
+        if not self.task_id:
+            raise UserError("Debe existir una tarea principal para crear subtareas")
+    
+        # Prepara valores por defecto sin crear el registro
+        default_values = {
+            'task_id': self.task_id.id,
+            'name': f"Subtarea de {self.task_id.name}",
+        }
+    
+        # Si el modelo tiene el campo y la tarea principal también
+        if hasattr(self.task_id, 'allowed_member_ids'):
+            default_values['allowed_member_ids'] = [(6, 0, self.task_id.allowed_member_ids.ids)]
+    
+        return {
+            'name': 'Nueva Subtarea',
+            'type': 'ir.actions.act_window',
+            'res_model': 'subtask.board',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_' + key: value for key, value in default_values.items()
+            }
+        }
+
     @api.depends('task_id')
     def compute_allowed_member_ids(self):
         self.allowed_member_ids = self.task_id.allowed_member_ids
