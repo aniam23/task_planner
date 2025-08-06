@@ -84,8 +84,41 @@ class TaskBoard(models.Model):
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
+    
+    def action_toggle_subtasks(self):
+        """Alternar visibilidad de subtareas sin cambiar el estado principal"""
+        self.ensure_one()
+        return self.write({
+            'show_subtasks': not self.show_subtasks,
+            'state': 'view_subtasks' if not self.show_subtasks else self._get_previous_state()
+        })
+
+    def action_open_activity_tree(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'subtask.activity',
+            'view_mode': 'tree,form',
+            'target': 'current',
+            'domain': [('subtask_id', '=', self.id)],  # Filtra por la subtarea actual
+            'context': {
+            'default_subtask_id': self.id,  # Establece la subtarea actual por defecto
+            'search_default_subtask_id': self.id  # Filtra automáticamente
+        },
+        'name': f'Actividades de {self.name}'
+    }
+
+    def _get_previous_state(self):
+        """Obtener el estado apropiado basado en el progreso"""
+        if self.progress >= 100:
+            return 'done'
+        elif self.progress > 0:
+            return 'in_progress'
+        return 'new'
+
     def action_save(self):
-        return True  
+        return True
+          
     def _compute_has_dynamic_fields(self):
         """Compute si hay campos dinámicos para mostrar la sección"""
         dynamic_fields = self.env['ir.model.fields'].search([
@@ -93,7 +126,6 @@ class TaskBoard(models.Model):
             ('name', 'like', 'x_%'),
             ('store', '=', True)
         ])
-
         for record in self:
             record.has_dynamic_fields = bool(dynamic_fields)
 
@@ -275,9 +307,7 @@ class TaskBoard(models.Model):
 
             # Create translation if needed
             self._create_safe_translation(field.id, field_vals.get('field_description', field_name))
-
             return field
-
         except Exception as e:
             _logger.error("Field creation/update failed for %s: %s", field_name, str(e))
             raise UserError(_("Error creating/updating field: %s") % str(e))
@@ -959,6 +989,7 @@ class TaskBoard(models.Model):
             'view_id': self.env.ref('task_planner.view_task_board_dynamic_fields_form').id,
             'target': 'new',
         }
+
     def action_custom_create_subtask(self):
         """Abre el formulario de creación de subtareas con el task_id predefinido"""
         self.ensure_one()
@@ -973,7 +1004,7 @@ class TaskBoard(models.Model):
                 'form_view_initial_mode': 'edit',    
             },
     }
-
+    
     def action_view_subtasks(self):
         """View subtasks action (con el botón personalizado)"""
         self.ensure_one()
@@ -991,7 +1022,7 @@ class TaskBoard(models.Model):
             },
             'target': 'current',
         }
-    
+
     def action_toggle_subtasks(self):
         """Toggle subtasks visibility"""
         for task in self:

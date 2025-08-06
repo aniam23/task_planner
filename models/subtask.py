@@ -38,13 +38,15 @@ class SubtaskBoard(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'subtask.activity',
-            'view_mode': 'tree',
-            'target': 'new',
+            'view_mode': 'tree,form',
+            'target': 'current',
+            'domain': [('subtask_id', '=', self.id)],  # Filtra por la subtarea actual
             'context': {
-                'default_res_model': 'subtask.board',
-                'default_res_id': self.id,
-            }
-        }
+            'default_subtask_id': self.id,  # Establece la subtarea actual por defecto
+            'search_default_subtask_id': self.id  # Filtra automáticamente
+        },
+        'name': f'Actividades de {self.name}'
+    }
 
     @api.constrains('person', 'task_id')
     def _check_person_selection(self):
