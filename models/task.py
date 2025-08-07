@@ -93,6 +93,7 @@ class TaskBoard(models.Model):
             'state': 'view_subtasks' if not self.show_subtasks else self._get_previous_state()
         })
 
+    
     def action_open_activity_tree(self):
         self.ensure_one()
         return {

@@ -32,7 +32,8 @@ class SubtaskBoard(models.Model):
     )
     
     activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Subtareas')
-    
+   
+   
     def action_open_activity_tree(self):
         self.ensure_one()
         return {
