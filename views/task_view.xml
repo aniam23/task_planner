@@ -173,19 +173,21 @@
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia"/>
                     <field name="name" string="Nombre de la tarea"/>
-                    <field name="person" widget="many2one_avatar_user" string="Responsable"  context="{'search_default_allowed_member_ids': True}"/>
+                    <field name="person" widget="many2one_avatar_user" string="Responsable" context="{'search_default_allowed_member_ids': True}"/>
                     <field name="state" widget="selection" string="Estado"/>
                     <field name="completion_date" widget="daterange" string="Fecha"/>
-                    <button name="action_open_activity_tree" type="object" icon="fa-eye" string="Ver Subtareas"/>
-                    <button name="action_custom_create_subtask" 
-                        type="object" 
-                        string="Nueva Tarea" 
-                        class="btn-primary" 
-                        icon="fa-plus"/>
+            
+                    <!-- Botón solo visible en la primera fila -->
+                    <button name="action_custom_create_subtask"
+                            type="object"
+                            icon="fa-plus"
+                            string="Nueva Tarea"
+                            attrs="{'invisible': [('id', '!=', 1)]}"/>
+                    <button type="object" name="action_create_dynamic_field" icon="fa-plus" class="btn-sm"/>
+                   
                 </tree>
             </field>
         </record>
-
         <!-- Vista Kanban -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>

@@ -738,6 +738,7 @@ class TaskBoard(models.Model):
        # Crear lista de opciones para mostrar
        field_options = [(field.name, field.field_description) for field in dynamic_fields]
 
+
        return {
            'name': _('Seleccionar campo a eliminar'),
            'type': 'ir.actions.act_window',
