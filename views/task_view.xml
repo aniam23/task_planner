@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
+    <data>  
         <!-- Vista Formulario -->
         <record id="view_remove_dynamic_field_selection" model="ir.ui.view">
             <field name="name">task.board.remove.dynamic.field.selection</field>
