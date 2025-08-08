@@ -26,6 +26,11 @@ class TaskBoard(models.Model):
     ondelete='cascade',
     domain="[]"
     )
+    dynamic_field_to_remove = fields.Selection(
+        selection='_get_dynamic_field_options',
+        string='Campo a eliminar',
+        help='Seleccione el campo dinámico que desea eliminar'
+    )
     person = fields.Many2one(
         'hr.employee',
         string='Responsable',
@@ -192,7 +197,6 @@ class TaskBoard(models.Model):
                     'fields': [],
                     'field_attrs': {}
                 }
-
     # --------------------------------------------
     # DATABASE SCHEMA METHODS
     # --------------------------------------------
@@ -202,10 +206,8 @@ class TaskBoard(models.Model):
             # Verificar y crear columnas faltantes
             self._create_column_if_missing('ir_model', 'varchar')
             self._create_column_if_missing('ir_model_fields', 'varchar')
-            
             # Actualizar valores si es necesario
             self._update_missing_keys()
-            
             return True
         except Exception as e:
             _logger.error("Error repairing schema: %s", str(e))
@@ -684,33 +686,102 @@ class TaskBoard(models.Model):
     # --------------------------------------------
     # FIELD REMOVAL METHODS
     # --------------------------------------------
+    def _get_existing_dynamic_fields(self):
+        """Obtiene todos los campos dinámicos extra agregados por el usuario"""
+        # Lista de campos estáticos originales del modelo
+        ORIGINAL_FIELDS = {
+            'name', 'sequence', 'completion_date', 'department_id', 'person', 
+            'allowed_member_ids', 'state', 'color', 'files', 'show_subtasks',
+            'subtask_ids', 'subtasks_count', 'completed_subtasks', 'total_subtasks',
+            'progress', 'apply_to_specific_task', 'dynamic_field_name', 
+            'dynamic_field_label', 'dynamic_field_type', 'selection_options',
+            'dynamic_fields_data', 'dynamic_field_list', 'has_dynamic_fields'
+        }
+
+        # Buscar todos los campos manuales del modelo
+        dynamic_fields = self.env['ir.model.fields'].sudo().search([
+            ('model', '=', 'task.board'),
+            ('state', '=', 'manual')
+        ])
+
+        # Filtrar solo los campos que no son originales y existen en DB
+        extra_fields = []
+        for field in dynamic_fields:
+            if field.name not in ORIGINAL_FIELDS:
+                try:
+                    self.env.cr.execute("""
+                        SELECT column_name 
+                        FROM information_schema.columns 
+                        WHERE table_name = %s 
+                        AND column_name = %s
+                    """, [self._table, field.name])
+                    if self.env.cr.fetchone():
+                        extra_fields.append(field)
+                except Exception:
+                    continue
+
+        return extra_fields
+
+    def _get_dynamic_field_options(self):
+        """Obtiene las opciones de campos dinámicos para el selection"""
+        dynamic_fields = self._get_existing_dynamic_fields()
+        return [(field.name, field.field_description) for field in dynamic_fields]
+
     def action_remove_dynamic_field(self):
-        """Remove a dynamic field completely - Versión corregida"""
-        self.ensure_one()
-        if not self.dynamic_field_name:
-            raise UserError(_("Please specify the field name to remove"))
-        field_name = self._generate_valid_field_name(self.dynamic_field_name)
-        try:
-            # 1. Forzar limpieza de caché inicial
-            self._ultimate_cache_cleanup()
-            # 2. Eliminar todas las vistas asociadas (incluyendo posibles duplicados)
-            self._remove_all_field_views(field_name)
-            # 3. Eliminar la definición del campo
-            self._remove_field_definition(field_name)
-            # 4. Eliminar metadatos
-            self._remove_field_metadata(field_name)
-            # 5. Eliminar columna de la base de datos
-            self._safe_remove_column(field_name)
-            # 6. Limpieza final de caché
-            self._ultimate_cache_cleanup()
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'reload',
-                'params': {'wait': True}
-            }
-        except Exception as e:
-            _logger.error("Error removing field %s: %s", field_name, str(e))
-            raise UserError(_("Error removing field: %s") % str(e))
+       """Muestra diálogo con selección de campo a eliminar"""
+       self.ensure_one()
+       dynamic_fields = self._get_existing_dynamic_fields()
+
+       if not dynamic_fields:
+           raise UserError(_("No hay campos dinámicos adicionales para eliminar"))
+
+       # Crear lista de opciones para mostrar
+       field_options = [(field.name, field.field_description) for field in dynamic_fields]
+
+       return {
+           'name': _('Seleccionar campo a eliminar'),
+           'type': 'ir.actions.act_window',
+           'res_model': self._name,
+           'view_mode': 'form',
+           'view_id': self.env.ref('task_planner.view_remove_dynamic_field_selection').id,
+           'target': 'new',
+           'res_id': self.id,
+           'context': {
+               'field_options': field_options,
+               'default_dynamic_field_to_remove': field_options[0][0] if field_options else False
+           }
+       }
+
+    def remove_selected_field(self):
+       """Elimina el campo seleccionado"""
+       self.ensure_one()
+       if not self.dynamic_field_to_remove:
+           raise UserError(_("Por favor seleccione un campo para eliminar"))
+
+       field_name = self.dynamic_field_to_remove
+       
+       try:
+           # 1. Limpieza de caché inicial
+           self._ultimate_cache_cleanup()
+           # 2. Eliminar vistas asociadas
+           self._remove_all_field_views(field_name)
+           # 3. Eliminar definición del campo
+           self._remove_field_definition(field_name)
+           # 4. Eliminar metadatos
+           self._remove_field_metadata(field_name)
+           # 5. Eliminar columna de la base de datos
+           self._safe_remove_column(field_name)
+           # 6. Limpieza final de caché
+           self._ultimate_cache_cleanup()
+
+           return {
+               'type': 'ir.actions.client',
+               'tag': 'reload',
+               'params': {'wait': True}
+           }
+       except Exception as e:
+           _logger.error("Error removing field %s: %s", field_name, str(e))
+           raise UserError(_("Error eliminando campo: %s") % str(e))
 
     def _remove_all_field_views(self, field_name):
         """Versión alternativa más agresiva"""
