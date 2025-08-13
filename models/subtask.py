@@ -285,7 +285,7 @@ class SubtaskBoard(models.Model):
                 </xpath>
             </data>
             """
-    
+
             self.env['ir.ui.view'].create({
                 'name': f'subtask.board.tree.dynamic.{field_name}',
                 'model': self._name,
@@ -294,12 +294,164 @@ class SubtaskBoard(models.Model):
                 'type': 'tree',
                 'priority': 99,
             })
-    
+
             self.env['ir.ui.view'].clear_caches()
-    
+
         except Exception as e:
             _logger.error("View update failed: %s", str(e))
             raise UserError(_("Failed to update view: %s") % str(e))
+
+    def action_open_delete_field_wizard(self):
+        self.ensure_one()
+        return {
+            'name': _('Eliminar Campo Dinámico'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'delete.dynamic.field.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_subtask_id': self.id,
+            }
+        }
+    
+    def _remove_field_from_all_views(self, field_name):
+        """Elimina el campo de todas las vistas donde aparezca"""
+        try:
+            # Busca y elimina el campo de todas las vistas
+            View = self.env['ir.ui.view']
+            views = View.search([
+                ('model', '=', self._name),
+                ('arch_db', 'like', field_name)
+            ])
+
+            for view in views:
+                try:
+                    arch = etree.fromstring(view.arch_db)
+                    for node in arch.xpath(f"//field[@name='{field_name}']"):
+                        parent = node.getparent()
+                        if parent is not None:
+                            parent.remove(node)
+                    view.write({'arch_db': etree.tostring(arch)})
+                except Exception as e:
+                    _logger.warning(f"No se pudo actualizar vista {view.id}: {str(e)}")
+                    continue
+
+        except Exception as e:
+            _logger.error(f"Error limpiando vistas: {str(e)}")
+            raise
+    
+    def safe_delete_dynamic_field(self, field_name):
+        """Eliminación más segura con verificación paso a paso"""
+        try:
+            # Verifica si el campo existe
+            field = self.env['ir.model.fields'].search([
+                ('model', '=', self._name),
+                ('name', '=', field_name)
+            ], limit=1)
+
+            if not field:
+                _logger.warning(f"Campo {field_name} no encontrado")
+                return False
+
+            # Elimina de vistas
+            self._remove_field_from_all_views(field_name)
+
+            # Elimina posibles restricciones
+            self._cr.execute(f"""
+                ALTER TABLE {self._table} 
+                DROP CONSTRAINT IF EXISTS {self._table}_{field_name}_check
+            """)
+
+            # Elimina la columna
+            self._cr.execute(f"""
+                ALTER TABLE {self._table} 
+                DROP COLUMN IF EXISTS {field_name}
+            """)
+
+            # Elimina la definición
+            field.unlink()
+
+            return True
+
+        except Exception as e:
+            _logger.error(f"Error seguro eliminando campo: {str(e)}")
+            return False
+
+    def action_delete_dynamic_field(self):
+        self.ensure_one()
+        field_id = self.env.context.get('active_field_id')
+        
+        if not field_id:
+            raise UserError(_("Error: No se proporcionó ID de campo a eliminar"))
+    
+        try:
+            # 1. Verificar existencia del campo
+            field = self.env['ir.model.fields'].search([
+                ('id', '=', field_id),
+                ('model', '=', self._name)
+            ])
+            
+            if not field:
+                raise UserError(_("El campo no existe o ya fue eliminado"))
+                
+            field_name = field.name
+    
+            # 2. Eliminar de vistas (método mejorado)
+            self._remove_field_from_all_views_safe(field_name)
+    
+            # 3. Eliminar columna de la base de datos (con verificación)
+            self._cr.execute(f"""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = %s 
+                AND column_name = %s
+            """, [self._table, field_name])
+            
+            if self._cr.fetchone():
+                self._cr.execute(f"ALTER TABLE {self._table} DROP COLUMN {field_name}")
+    
+            # 4. Eliminar definición
+            field.unlink()
+    
+            # 5. Limpiar caché
+            self.env['ir.ui.view'].clear_caches()
+            
+            return {'type': 'ir.actions.client', 'tag': 'reload'}
+    
+        except Exception as e:
+            _logger.error("Error eliminando campo %s: %s", field_name, str(e))
+            raise UserError(_("Error completo al eliminar campo: %s") % str(e))
+
+    def _remove_field_from_all_views_safe(self, field_name):
+        """Elimina el campo de vistas sin errores de índice"""
+        try:
+            views = self.env['ir.ui.view'].search([
+                ('model', '=', self._name),
+                ('arch_db', 'ilike', field_name)
+            ])
+
+            for view in views:
+                try:
+                    arch = etree.fromstring(view.arch_db)
+                    nodes = arch.xpath(f"//field[@name='{field_name}']")
+
+                    if not nodes:  # Evita "index out of range"
+                        continue
+
+                    for node in nodes:
+                        parent = node.getparent()
+                        if parent is not None:
+                            parent.remove(node)
+
+                    view.arch_db = etree.tostring(arch)
+
+                except Exception as e:
+                    _logger.warning("Error procesando vista %s: %s", view.id, str(e))
+                    continue
+
+        except Exception as e:
+            _logger.error("Error general limpiando vistas: %s", str(e))
+            raise
 
     def _get_tree_widget_for_field(self):
         """Get appropriate widget for field type"""

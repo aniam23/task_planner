@@ -190,6 +190,13 @@
                            type="object" 
                            class="btn-primary"
                             icon="fa-plus"/>
+                    
+                    <!-- Añade esto en tu vista de subtask.board -->
+                    <button name="action_open_delete_field_wizard"
+                            string="Eliminar Campo"
+                            type="object"
+                            class="btn-danger"
+                            groups="base.group_user"/>
                 </tree>
             </field>
         </record>

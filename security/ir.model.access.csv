@@ -4,3 +4,4 @@ access_task_board,task_board,model_task_board,base.group_user,1,1,1,1
 access_subtask_board,subtask.board,model_subtask_board,base.group_user,1,1,1,1
 access_subtask_activity,subtask.activity,model_subtask_activity,base.group_user,1,1,1,1
 access_dynamic_field_wizard,dynamic.field.wizard,model_dynamic_field_wizard,base.group_user,1,1,1,1
+access_delete_dynamic_field_wizard,delete.dynamic.field.wizard,model_delete_dynamic_field_wizard,base.group_user,1,1,1,1
