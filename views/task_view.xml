@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>  
+    <data>
         <!-- Vista Formulario -->
         <record id="view_remove_dynamic_field_selection" model="ir.ui.view">
             <field name="name">task.board.remove.dynamic.field.selection</field>
@@ -9,7 +9,6 @@
                 <form string="Eliminar campo dinámico">
                     <sheet>
                         <group>
-                           
                             <field name="dynamic_field_to_remove" widget="radio" options="{'horizontal': true}"/>
                         </group>
                     </sheet>
@@ -166,28 +165,35 @@
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree create="false" string="Tareas" 
+                <tree create="false" string="Tareas"
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia"/>
                     <field name="name" string="Nombre de la tarea"/>
-                    <field name="person" widget="many2one_avatar_user" string="Responsable" context="{'search_default_allowed_member_ids': True}"/>
+                    <field name="task_id" string="Tarea Padre" invisible="1"/>
+                    <field name="person" widget="many2one_avatar_user" string="Responsable"/>
                     <field name="state" widget="selection" string="Estado"/>
                     <field name="completion_date" widget="daterange" string="Fecha"/>
-            
-                    <!-- Botón solo visible en la primera fila -->
-                    <button name="action_custom_create_subtask"
-                            type="object"
-                            icon="fa-plus"
-                            string="Nueva Tarea"
-                            attrs="{'invisible': [('id', '!=', 1)]}"/>
-                    <button type="object" name="action_create_dynamic_field" icon="fa-plus" class="btn-sm"/>
-                   
+                    <field name="files" widget="many2many_binary" string="Archivos"/>
+                    <!-- Botones de acción -->
+                    <button name="action_open_activity_tree" type="object" icon="fa-tasks" string="Actividades"/>
+                    <button name="action_custom_create_subtask" 
+                           type="object" 
+                           string="Nueva Subtarea" 
+                           class="btn-primary" 
+                           icon="fa-plus"/>
+                    
+                    <button name="action_open_dynamic_field_wizard" 
+                           string="Añadir Campo Dinámico" 
+                           type="object" 
+                           class="btn-primary"
+                            icon="fa-plus"/>
                 </tree>
             </field>
         </record>
+
         <!-- Vista Kanban -->
         <record id="activity_planner_task_view_kanban" model="ir.ui.view">
             <field name="name">task.board.kanban</field>
@@ -343,6 +349,29 @@
                 </kanban>
             </field>
         </record>
+
+        <!-- <record id="view_subtask_dynamic_field_tree" model="ir.ui.view">
+            <field name="name">subtask.board.dynamic.field.tree</field>
+            <field name="model">subtask.board</field>
+            <field name="arch" type="xml">
+                <form>
+                    <sheet>
+                        <group>
+                            <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
+                            <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
+                            <field name="dynamic_field_type" string="Tipo de Campo" required="1" widget="radio"/>
+                            <field name="selection_options" string="Opciones de Selección"
+                                   attrs="{'invisible': [('dynamic_field_type','!=','selection')]}"/>
+                        </group>
+                    </sheet>
+                    <footer>
+                        <button name="action_create_dynamic_field" string="Crear Campo" type="object" class="btn-primary"/>
+                        <button string="Cancelar" special="cancel" class="btn-secondary"/>
+                    </footer>
+                </form>
+            </field>
+        </record> -->
+        
 
         <!-- Acción de ventana -->
         <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">

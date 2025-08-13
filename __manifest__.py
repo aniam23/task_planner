@@ -24,6 +24,7 @@
     'views/task_view.xml',
     'views/sub_task_view.xml',
     'views/menu.xml',
+    'views/dinamic_field_wizard_view.xml',
     ],
     
     'installable': True,

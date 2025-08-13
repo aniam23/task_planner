@@ -56,7 +56,7 @@ class TaskBoard(models.Model):
     # --------------------------------------------
     # SUBTASK RELATED FIELDS
     # --------------------------------------------
-    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Tareas')
+    subtask_ids = fields.One2many('subtask.board', 'task_id', string='Tareas', store=True)
     subtasks_count = fields.Integer(string='Numero de Tareas', compute='_compute_progress', store=True)
     completed_subtasks = fields.Integer(string='Tareas Completadas', compute='_compute_progress', store=True)
     total_subtasks = fields.Integer(string='Total de Tareas', compute='_compute_progress', store=True)
@@ -97,8 +97,7 @@ class TaskBoard(models.Model):
             'show_subtasks': not self.show_subtasks,
             'state': 'view_subtasks' if not self.show_subtasks else self._get_previous_state()
         })
-
-    
+        
     def action_open_activity_tree(self):
         self.ensure_one()
         return {
@@ -738,7 +737,6 @@ class TaskBoard(models.Model):
        # Crear lista de opciones para mostrar
        field_options = [(field.name, field.field_description) for field in dynamic_fields]
 
-
        return {
            'name': _('Seleccionar campo a eliminar'),
            'type': 'ir.actions.act_window',
@@ -1079,19 +1077,20 @@ class TaskBoard(models.Model):
     }
     
     def action_view_subtasks(self):
-        """View subtasks action (con el botón personalizado)"""
         self.ensure_one()
         return {
-            'name': ('Tareas'),
+            'name': 'Tareas',
             'type': 'ir.actions.act_window',
             'res_model': 'subtask.board',
             'view_mode': 'tree,form',
+            'views': [
+                (self.env.ref('task_planner.view_subtask_tree').id, 'tree'),
+                (self.env.ref('task_planner.activity_planner_subtask_form').id, 'form')
+            ],
             'domain': [('task_id', '=', self.id)],
             'context': {
-                'default_task_id': self.id,  # Asigna la tarea padre al crear
-                'search_default_task_id': self.id,
-                'form_view_initial_mode': 'edit',
-                'create': False,  # Oculta el botón por defecto
+                'default_task_id': self.id,
+                'search_default_task_id': self.id
             },
             'target': 'current',
         }
