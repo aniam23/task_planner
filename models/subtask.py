@@ -25,7 +25,7 @@ class SubtaskBoard(models.Model):
     drag = fields.Integer()
     files = fields.Many2many('ir.attachment', string="Files")
     state = fields.Selection(STATES, default="new", string="Status", tracking=True)
-    
+    field_info = fields.Text(string="Ingresar datos para el campo") 
     # Relational fields
     task_id = fields.Many2one('task.board', string='Parent Task', ondelete='cascade')
     person = fields.Many2one(
@@ -71,9 +71,151 @@ class SubtaskBoard(models.Model):
         readonly=True
     )
 
-    # ===========================
-    # CONSTRAINTS AND VALIDATIONS
-    # ===========================
+    has_dynamic_fields = fields.Boolean(
+        string="Has Dynamic Fields",
+        compute='_compute_has_dynamic_fields',
+        store=False  # No necesitamos almacenarlo, se calcula dinámicamente
+    )
+
+    def _compute_has_dynamic_fields(self):
+        """Actualización optimizada del campo computado"""
+        dynamic_count = self.env['ir.model.fields'].search_count([
+            ('model', '=', self._name),
+            ('name', 'like', 'x_%'),
+            ('state', '=', 'manual')
+        ])
+        for record in self:
+            record.has_dynamic_fields = bool(dynamic_count)
+
+    def force_view_update(self):
+        """Método para forzar la actualización de vistas"""
+        view = self.env.ref('tu_modulo.view_subtask_board_form')
+        view.write({'arch': view.arch})
+        self.env['ir.ui.view'].clear_caches()
+        return True
+
+    @api.model
+    def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
+        res = super(SubtaskBoard, self).fields_view_get(
+            view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu
+        )
+
+        if view_type == 'form':
+            dynamic_fields = self.env['ir.model.fields'].search([
+                ('model', '=', self._name),
+                ('name', 'like', 'x_%'),
+                ('state', '=', 'manual')
+            ])
+
+            if dynamic_fields:
+                doc = etree.XML(res['arch'])
+
+                # Buscar el grupo de campos dinámicos
+                for group_node in doc.xpath("//group[@string='Campos Personalizados']"):
+                    # Limpiar el grupo antes de añadir nuevos campos
+                    group_node.clear()
+
+                    # Añadir cada campo dinámico con su configuración adecuada
+                    for field in dynamic_fields:
+                        field_attrs = {
+                            'name': field.name,
+                            'string': field.field_description,
+                            'optional': 'show'
+                        }
+
+                        # Widgets específicos por tipo de campo
+                        if field.ttype == 'selection':
+                            field_attrs['widget'] = 'selection'
+                        elif field.ttype == 'boolean':
+                            field_attrs['widget'] = 'boolean'
+                        elif field.ttype == 'date':
+                            field_attrs['widget'] = 'date'
+                        elif field.ttype == 'datetime':
+                            field_attrs['widget'] = 'datetime'
+
+                        field_node = etree.Element('field', field_attrs)
+                        group_node.append(field_node)
+
+                res['arch'] = etree.tostring(doc, encoding='unicode')
+
+        return res
+
+    @api.model
+    def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
+        res = super(SubtaskBoard, self).fields_view_get(
+            view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu
+        )
+
+        if view_type == 'form':
+            # Buscar campos dinámicos
+            dynamic_fields = self.env['ir.model.fields'].search([
+                ('model', '=', self._name),
+                ('name', 'like', 'x_%'),
+                ('state', '=', 'manual')
+            ])
+
+            if dynamic_fields:
+                doc = etree.XML(res['arch'])
+
+                # Buscar el contenedor de campos dinámicos
+                for node in doc.xpath("//div[@name='dynamic_fields']"):
+                    parent = node.getparent()
+
+                    # Crear un grupo para cada campo dinámico
+                    for field in dynamic_fields:
+                        field_node = etree.Element('field', {
+                            'name': field.name,
+                            'string': field.field_description,
+                            'optional': 'show'
+                        })
+
+                        # Añadir widget apropiado según el tipo de campo
+                        if field.ttype == 'selection':
+                            field_node.set('widget', 'selection')
+                        elif field.ttype == 'boolean':
+                            field_node.set('widget', 'boolean')
+                        elif field.ttype in ['date', 'datetime']:
+                            field_node.set('widget', field.ttype)
+
+                        parent.insert(parent.index(node), field_node)
+
+                    # Eliminar el nodo marcador si lo prefieres
+                    # parent.remove(node)
+
+                res['arch'] = etree.tostring(doc, encoding='unicode')
+
+        return res
+    @api.depends()
+    def _compute_dynamic_fields_data(self):
+        """Devuelve los campos dinámicos como JSON string"""
+        for record in self:
+            try:
+                dynamic_fields = [
+                    {'name': name, 'string': self._fields[name].string or name}
+                    for name in self._fields
+                    if name.startswith(('x_', 'dynamic_', 'custom_'))
+                ]
+                record.dynamic_fields_data = json.dumps(dynamic_fields or [])
+            except Exception:
+                record.dynamic_fields_data = '[]'
+
+    def get_converted_value(self):
+        self.ensure_one()
+        try:
+            if self.dynamic_field_type == 'integer':
+                return int(self.dynamic_field_value) if self.dynamic_field_value else 0
+            elif self.dynamic_field_type == 'float':
+                return float(self.dynamic_field_value) if self.dynamic_field_value else 0.0
+            elif self.dynamic_field_type == 'boolean':
+                return bool(self.dynamic_field_value.lower() == 'true') if self.dynamic_field_value else False
+            elif self.dynamic_field_type == 'date':
+                return fields.Date.from_string(self.dynamic_field_value) if self.dynamic_field_value else False
+            elif self.dynamic_field_type == 'datetime':
+                return fields.Datetime.from_string(self.dynamic_field_value) if self.dynamic_field_value else False
+            else:  # char, selection y otros
+                return self.dynamic_field_value or ''
+        except (ValueError, AttributeError):
+            raise UserError(_("El valor no coincide con el tipo de campo"))
 
     @api.constrains('person', 'task_id')
     def _check_person_selection(self):
@@ -88,6 +230,18 @@ class SubtaskBoard(models.Model):
     # ACTION METHODS
     # ===========================
 
+    def action_open_dynamic_fields_form(self):
+        """Abre el formulario emergente para editar campos dinámicos"""
+        return {
+            "type": "ir.actions.act_window",
+            "name": "Editar Campos Dinámicos",
+            "res_model": "subtask.board",  # Mismo modelo (no wizard)
+            "res_id": self.id,  # ID del registro actual
+            "view_mode": "form",
+            "view_id": self.env.ref("task_planner.view_subtask_dynamic_fields_form").id,
+        "target": "new",  # Abre en ventana emergente
+        "flags": {"form": {"action_buttons": True}},
+    }
     def action_open_activity_tree(self):
         self.ensure_one()
         return {
@@ -140,37 +294,42 @@ class SubtaskBoard(models.Model):
         }
 
     def action_create_dynamic_field(self):
-        self.ensure_one()
-
+        """Método modificado para trabajar directamente desde subtask.board"""
         if not all([self.dynamic_field_name, self.dynamic_field_type]):
             raise UserError(_("Field name and type are required"))
-
+    
         field_name = self._generate_valid_field_name(self.dynamic_field_name)
         field_label = self.dynamic_field_label or self.dynamic_field_name.replace('_', ' ').title()
-
+    
         try:
+            # 1. Crear el campo dinámico
             self._create_field_in_model(
                 field_name,
                 field_label,
                 self.dynamic_field_type,
                 self.selection_options
             )
-
-            # CORRECCIÓN: Pasa field_label al método _update_tree_view
+    
+            # 2. Actualizar TODAS las subtareas existentes
+            all_subtasks = self.env['subtask.board'].search([])
+            
+            if self.field_info:  # Si hay información para guardar
+                # Para campos de selección, necesitamos el valor clave (no el label)
+                if self.dynamic_field_type == 'selection' and self.selection_options:
+                    options = [line.split(':')[0].strip() 
+                             for line in self.selection_options.split('\n') 
+                             if line.strip()]
+                    if options:
+                        all_subtasks.write({field_name: options[0]})  # Usa la primera opción
+                else:
+                    all_subtasks.write({field_name: self.field_info})
+    
+            # 3. Actualizar la vista
             self._update_tree_view(field_name, field_label)
-
             self._store_field_metadata(field_name)
-
-            # Clear fields after creation
-            self.write({
-                'dynamic_field_name': False,
-                'dynamic_field_label': False,
-                'dynamic_field_type': False,
-                'selection_options': False
-            })
-
+    
             return {'type': 'ir.actions.client', 'tag': 'reload'}
-
+    
         except Exception as e:
             _logger.error("Field creation error: %s", str(e))
             raise UserError(_("Field creation failed: %s") % str(e))
@@ -274,12 +433,12 @@ class SubtaskBoard(models.Model):
         self._cr.execute(query)
 
     def _update_tree_view(self, field_name, field_label):
-        """Update tree view to show new field"""
+        """Update tree view to show new field with the info"""
         try:
             view = self.env.ref('task_planner.view_subtask_tree')
             arch = f"""
             <data>
-                <xpath expr="//tree/field[@name='completion_date']" position="after">
+                <xpath expr="//tree" position="inside">
                     <field name="{field_name}" string="{field_label}" 
                            optional="show" {self._get_tree_widget_for_field()}/>
                 </xpath>
@@ -296,10 +455,9 @@ class SubtaskBoard(models.Model):
             })
 
             self.env['ir.ui.view'].clear_caches()
-
         except Exception as e:
             _logger.error("View update failed: %s", str(e))
-            raise UserError(_("Failed to update view: %s") % str(e))
+            raise
 
     def action_open_delete_field_wizard(self):
         self.ensure_one()
@@ -380,25 +538,25 @@ class SubtaskBoard(models.Model):
     def action_delete_dynamic_field(self):
         self.ensure_one()
         field_id = self.env.context.get('active_field_id')
-        
+
         if not field_id:
             raise UserError(_("Error: No se proporcionó ID de campo a eliminar"))
-    
+
         try:
             # 1. Verificar existencia del campo
             field = self.env['ir.model.fields'].search([
                 ('id', '=', field_id),
                 ('model', '=', self._name)
             ])
-            
+
             if not field:
                 raise UserError(_("El campo no existe o ya fue eliminado"))
-                
+
             field_name = field.name
-    
+
             # 2. Eliminar de vistas (método mejorado)
             self._remove_field_from_all_views_safe(field_name)
-    
+
             # 3. Eliminar columna de la base de datos (con verificación)
             self._cr.execute(f"""
                 SELECT column_name 
@@ -406,18 +564,18 @@ class SubtaskBoard(models.Model):
                 WHERE table_name = %s 
                 AND column_name = %s
             """, [self._table, field_name])
-            
+
             if self._cr.fetchone():
                 self._cr.execute(f"ALTER TABLE {self._table} DROP COLUMN {field_name}")
-    
+
             # 4. Eliminar definición
             field.unlink()
-    
+
             # 5. Limpiar caché
             self.env['ir.ui.view'].clear_caches()
-            
+
             return {'type': 'ir.actions.client', 'tag': 'reload'}
-    
+
         except Exception as e:
             _logger.error("Error eliminando campo %s: %s", field_name, str(e))
             raise UserError(_("Error completo al eliminar campo: %s") % str(e))

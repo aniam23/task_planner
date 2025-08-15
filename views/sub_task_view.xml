@@ -1,39 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo> 
-    <data>
-        <record id="activity_planner_subtask_form" model="ir.ui.view">
-            <field name="name">subtask.planner.form</field>
-            <field name="model">subtask.board</field>
-            <field name="arch" type="xml">
-                <form>
-                    <sheet>
+<odoo>  
+    <record id="activity_planner_subtask_form" model="ir.ui.view">
+        <field name="name">subtask.planner.form</field>
+        <field name="model">subtask.board</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
                         <group>
-                            <group>
-                                <field name="name"/>
-                                <field name="allowed_member_ids" invisible="1"/>
-                                <field name="person" widget="many2one_avatar_user" domain="[('id', 'in', allowed_member_ids)]"/>
-                                <field name="state"/>
-                                <field name="activity_line_ids">
-                                    <tree editable="bottom">
-                                        <field name="name"/>
-                                        <field name="person" domain="[('id', 'in', parent.allowed_member_ids)]"/>
-                                        <field name="date_deadline"/>
-                                        <field name="done"/>
-                                    </tree>
-                                </field>
-                            </group>
-                            <group>
-                                <field name="files" widget="many2many_binary"/>
-                            </group>
+                            <!-- Campos estáticos -->
+                            <field name="name"/>
+                            <field name="allowed_member_ids" invisible="1"/>
+                            <field name="person" widget="many2one_avatar_user" domain="[('id', 'in', allowed_member_ids)]"/>
+                            <field name="state"/>
+
+                            <field name="activity_line_ids">
+                                <tree editable="bottom">
+                                    <field name="name"/>
+                                    <field name="person" domain="[('id', 'in', parent.allowed_member_ids)]"/>
+                                    <field name="date_deadline"/>
+                                    <field name="done"/>
+                                    <field name="field_info"/>
+
+                                </tree>
+                            </field>
                         </group>
-                    </sheet>
-                    <div class="oe_chatter">
-                        <field name="message_follower_ids" widget="mail_followers"/>
-                        <field name="message_ids" widget="mail_thread"/>
-                    </div>
-                </form>
-            </field>
-        </record>
-        
-    </data>
+                        <group>
+                            <field name="files" widget="many2many_binary"/>
+                        </group>
+
+                       <field name="allowed_member_ids" invisible="1"/>
+                        <!-- Sección dinámica mejorada -->
+                        <field name="has_dynamic_fields" invisible="1"/>
+                        <group attrs="{'invisible': [('has_dynamic_fields', '=', False)]}" string="Campos Personalizados"  col="4">
+                           
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
 </odoo>

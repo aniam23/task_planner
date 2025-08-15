@@ -13,3 +13,6 @@ class SubtaskActivity(models.Model):
     string='Responsable',
     domain="[('id', 'in',allowed_member_ids)]"
     )
+    field_info = fields.Text()
+
+

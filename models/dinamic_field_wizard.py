@@ -8,14 +8,13 @@ class DynamicFieldWizard(models.TransientModel):
     # Campos definidos en el wizard
     dynamic_field_name = fields.Char(string="Nombre Técnico del Campo", required=True)
     dynamic_field_label = fields.Char(string="Etiqueta Visible", required=True)
+    field_info = fields.Text(string="ingresar datos")
     dynamic_field_type = fields.Selection([
         ('char', 'Texto'),
         ('integer', 'Entero'),
         ('float', 'Decimal'),
-        ('boolean', 'Booleano'),
         ('date', 'Fecha'),
-        ('datetime', 'Fecha/Hora'),
-        ('selection', 'Selección')],
+        ('datetime', 'Fecha/Hora')],
         string="Tipo de Campo",
         required=True
     )
@@ -34,14 +33,14 @@ class DynamicFieldWizard(models.TransientModel):
         if not self.dynamic_field_name or not self.dynamic_field_type:
             raise UserError(_("¡Error! El nombre técnico y tipo de campo son obligatorios"))
         
-        # Pasa los valores del wizard al subtask - CORRECCIÓN AQUÍ
-        # Usa los mismos nombres que definiste en los campos del wizard
+        # Pasa los valores del wizard al subtask
         self.subtask_id.write({
-            'dynamic_field_name': self.dynamic_field_name,  # Antes era self.field_name
-            'dynamic_field_label': self.dynamic_field_label,  # Antes era self.field_label
-            'dynamic_field_type': self.dynamic_field_type,
-            'selection_options': self.selection_options
-        })
-        
-        # Llama al método en la subtarea
+        'dynamic_field_name': self.dynamic_field_name,
+        'dynamic_field_label': self.dynamic_field_label,
+        'dynamic_field_type': self.dynamic_field_type,
+        'selection_options': self.selection_options,
+        'field_info': self.field_info  # Añade esta línea para guardar la información
+    })
+    
+    # Llama al método en la subtarea
         return self.subtask_id.action_create_dynamic_field()

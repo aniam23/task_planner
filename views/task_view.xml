@@ -62,7 +62,6 @@
                 </form>
             </field>
         </record>
-
         <!-- Vista para editar campos del kanban -->
         <record id="view_task_board_form" model="ir.ui.view">
             <field name="name">task.board.form</field>
@@ -113,7 +112,6 @@
                 </form>
             </field>
         </record>
-
         <!-- Vista para crear campos dinámicos -->
         <record id="view_task_board_dynamic_fields_form" model="ir.ui.view">
             <field name="name">task.board.dynamic.fields.form</field>
@@ -165,25 +163,24 @@
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree create="false" string="Tareas"
+                <tree  string="Tareas"
+                      edit="false"
+                      create="false"
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia"/>
-                    <field name="name" string="Nombre de la tarea"/>
-                    <field name="task_id" string="Tarea Padre" invisible="1"/>
-                    <field name="person" widget="many2one_avatar_user" string="Responsable"/>
-                    <field name="state" widget="selection" string="Estado"/>
-                    <field name="completion_date" widget="daterange" string="Fecha"/>
-                    <field name="files" widget="many2many_binary" string="Archivos"/>
+                    <field name="name" string="Nombre de la tarea" options="{'no_open': True}"/>
+                    <field name="task_id" string="Tarea Padre" invisible="1" options="{'no_open': True}"/>
+                    <field name="person" widget="many2one_avatar_user" string="Responsable" options="{'no_open': True}"/>
+                    <field name="state" widget="selection" string="Estado" options="{'no_open': True}"/>
+
+                    <field name="completion_date" widget="daterange" string="Fecha" options="{'no_open': True}"/>
+                    <field name="files" widget="many2many_binary" string="Archivos" options="{'no_open': True}"/>
                     <!-- Botones de acción -->
-                    <button name="action_open_activity_tree" type="object" icon="fa-tasks" string="Actividades"/>
-                    <button name="action_custom_create_subtask" 
-                           type="object" 
-                           string="Nueva Subtarea" 
-                           class="btn-primary" 
-                           icon="fa-plus"/>
+                    <button name="action_open_activity_tree" type="object" icon="fa-tasks" string="Actividades" class="oe_no_button"/>
+                   
                     
                     <button name="action_open_dynamic_field_wizard" 
                            string="Añadir Campo Dinámico" 
@@ -219,7 +216,6 @@
                     <field name="show_subtasks"/>
                     <field name="subtask_ids"/>
                     <field name="has_dynamic_fields" invisible="1"/>
-                
                     <templates>
                         <t t-name="kanban-box">
                             <div class="oe_kanban_global_click o_kanban_record" style="background: transparent;">
@@ -356,30 +352,6 @@
                 </kanban>
             </field>
         </record>
-
-        <!-- <record id="view_subtask_dynamic_field_tree" model="ir.ui.view">
-            <field name="name">subtask.board.dynamic.field.tree</field>
-            <field name="model">subtask.board</field>
-            <field name="arch" type="xml">
-                <form>
-                    <sheet>
-                        <group>
-                            <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
-                            <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
-                            <field name="dynamic_field_type" string="Tipo de Campo" required="1" widget="radio"/>
-                            <field name="selection_options" string="Opciones de Selección"
-                                   attrs="{'invisible': [('dynamic_field_type','!=','selection')]}"/>
-                        </group>
-                    </sheet>
-                    <footer>
-                        <button name="action_create_dynamic_field" string="Crear Campo" type="object" class="btn-primary"/>
-                        <button string="Cancelar" special="cancel" class="btn-secondary"/>
-                    </footer>
-                </form>
-            </field>
-        </record> -->
-        
-
         <!-- Acción de ventana -->
         <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
             <field name="name">Tasks Board</field>
@@ -389,6 +361,23 @@
             <field name="domain">[('department_id', '=', active_id)]</field>
             <field name="target">current</field>
             <field name="context">{'default_department_id': active_id}</field>
+        </record>
+
+        <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
+            <field name="name">Tasks Board</field>
+            <field name="res_model">subtask.board</field>  <!-- Asegúrate que apunte al modelo correcto -->
+            <field name="view_mode">tree</field>  <!-- Solo vista tree -->
+            <field name="view_id" ref="view_subtask_tree"/>  <!-- ID de tu vista tree personalizada -->
+            <field name="target">current</field>
+            <field name="context">
+                {
+                    'default_department_id': active_id,
+                    'tree_view_ref': 'task_planner.view_subtask_tree',  <!-- Fuerza esta vista tree -->
+                    'form_view_ref': False,  <!-- Desactiva el formulario -->
+                    'create': False,  <!-- Bloquea creación desde la interfaz -->
+                    'edit': False  <!-- Bloquea edición -->
+                }
+            </field>
         </record>
     </data>
 </odoo>

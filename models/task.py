@@ -81,15 +81,15 @@ class TaskBoard(models.Model):
     selection_options = fields.Text(string='Selection Options')
     dynamic_fields_data = fields.Text(string='Dynamic Fields Data')
     dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
+
+    # --------------------------------------------
+    # COMPUTE METHODS
+    # --------------------------------------------
     has_dynamic_fields = fields.Boolean(
         string="Has Dynamic Fields",
         compute='_compute_has_dynamic_fields',
         store=False  # No necesitamos almacenarlo, se calcula dinámicamente
     )
-    # --------------------------------------------
-    # COMPUTE METHODS
-    # --------------------------------------------
-    
     def action_toggle_subtasks(self):
         """Alternar visibilidad de subtareas sin cambiar el estado principal"""
         self.ensure_one()
@@ -1062,20 +1062,18 @@ class TaskBoard(models.Model):
         }
 
     def action_custom_create_subtask(self):
-        """Abre el formulario de creación de subtareas con el task_id predefinido"""
-        self.ensure_one()
         return {
-            'name': ('Nueva Tarea'),
             'type': 'ir.actions.act_window',
+            'name': 'Nueva Subtarea',
             'res_model': 'subtask.board',
             'view_mode': 'form',
-            'target': 'current',
+            'view_id': self.env.ref('task_planner.view_subtask_form').id,  # Vista formulario específica
+            'target': 'new',  # Abre en popup
             'context': {
-                'default_task_id': self.task_id.id,  
-                'form_view_initial_mode': 'edit',    
+                'default_task_id': self.task_id.id,
+                'form_view_initial_mode': 'edit',
             },
-    }
-    
+        }
     def action_view_subtasks(self):
         self.ensure_one()
         return {
