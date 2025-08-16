@@ -94,6 +94,20 @@ class SubtaskBoard(models.Model):
         self.env['ir.ui.view'].clear_caches()
         return True
 
+    def _generate_valid_field_name(self, name):
+        """Genera un nombre de campo válido sin forzar 'x_' para campos de sistema"""
+        # Limpia el nombre: solo letras, números y guiones bajos
+        clean_name = re.sub(r'[^a-zA-Z0-9_]', '', name.lower().replace(' ', '_'))
+        
+        # Si el campo es para ir.model.fields (como task_board_id), no añadir 'x_'
+        if self._context.get('is_system_field'):
+            return clean_name
+        
+        # Para campos dinámicos en otros modelos, mantener la lógica original
+        if not clean_name.startswith('x_'):
+            clean_name = f'x_{clean_name}'
+        return clean_name
+        
     @api.model
     def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
         res = super(SubtaskBoard, self).fields_view_get(
@@ -689,6 +703,10 @@ class SubtaskBoard(models.Model):
                     ('state', '=', 'manual'),
                     ('name', 'like', 'x_%')
                 ])]
+
+   
+
+ 
 
    
 

@@ -7,14 +7,14 @@
             <form string="Crear Campo Dinámico">
                 <sheet>
                     <group>
-                        
-                        <field name="dynamic_field_name"/>
-                        <field name="dynamic_field_label"/>
-                        <field name="dynamic_field_type"/>
-                        <field name="field_info"/>
-
-                        <field name="selection_options" attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}"/>
-                    </group>
+                    <field name="task_board_id" string="Grupo Destino" readonly="1"/>
+                    <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
+                    <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
+                    <field name="dynamic_field_type" string="Tipo de Campo" required="1"/>
+                    <field name="selection_options" string="Opciones de Selección"
+                           attrs="{'invisible': [('dynamic_field_type','!=','selection')]}"/>
+                    <field name="field_info" string="Valor Inicial"/>
+                </group>
                 </sheet>
                 <footer>
                     <button name="action_create_dynamic_field" string="Crear" type="object" class="btn-primary"/>

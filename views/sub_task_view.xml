@@ -31,10 +31,7 @@
 
                        <field name="allowed_member_ids" invisible="1"/>
                         <!-- Sección dinámica mejorada -->
-                        <field name="has_dynamic_fields" invisible="1"/>
-                        <group attrs="{'invisible': [('has_dynamic_fields', '=', False)]}" string="Campos Personalizados"  col="4">
-                           
-                        </group>
+                        
                     </group>
                 </sheet>
             </form>

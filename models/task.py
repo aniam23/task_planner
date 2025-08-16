@@ -1120,22 +1120,42 @@ class TaskBoard(models.Model):
     @api.model
     def create(self, vals):
         # Validación de campos obligatorios
-        if not vals.get('name'):
-            raise ValidationError(_("El nombre de la tarea es obligatorio"))
-        if not vals.get('person'):
-            raise ValidationError(_("Debe asignar un responsable"))
-        if not vals.get('department_id'):
-            raise ValidationError(_("Debe seleccionar un departamento"))
+        required_fields = ['name', 'person', 'department_id']
+        for field in required_fields:
+            if not vals.get(field):
+                raise ValidationError(_("El campo %s es obligatorio") % field)
         
         # Validación de departamento-empleado
         person_id = vals.get('person')
         department_id = vals.get('department_id')
+        
         if person_id and department_id:
             employee = self.env['hr.employee'].browse(person_id)
             if not employee.exists():
                 raise ValidationError(_("El empleado seleccionado no existe"))
-            if employee.department_id.id != department_id:
-                raise ValidationError(_("El empleado no pertenece al departamento seleccionado"))
+            
+            # Asegurarse de que el empleado tenga un departamento asignado
+            if not employee.department_id:
+                raise ValidationError(_("El empleado no tiene un departamento asignado"))
+            
+            # Convertir department_id a entero si es necesario
+            selected_dept_id = department_id
+            if isinstance(selected_dept_id, str):
+                try:
+                    selected_dept_id = int(selected_dept_id)
+                except ValueError:
+                    raise ValidationError(_("El ID del departamento no es válido"))
+            
+            # Comparar IDs de departamento
+            if employee.department_id.id != selected_dept_id:
+                raise ValidationError(_(
+                    "El empleado %s pertenece al departamento %s, pero seleccionaste %s. "
+                    "Verifica la asignación."
+                ) % (
+                    employee.name,
+                    employee.department_id.name,
+                    self.env['hr.department'].browse(selected_dept_id).name
+                ))
         
         return super().create(vals)
 
