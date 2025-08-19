@@ -425,7 +425,7 @@ class SubtaskBoard(models.Model):
             <data>
                 <xpath expr="//tree" position="inside">
                     <field name="{field_name}" string="{field_label}" 
-                           optional="show" {self._get_tree_widget_for_field()}/>
+                           optional="show" {self._get_tree_widget_for_field()}  invisible="context.get('name') != {self.name}"/>
                 </xpath>
             </data>
             """

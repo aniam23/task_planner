@@ -35,6 +35,21 @@ class SubtaskActivity(models.Model):
     selection_options = fields.Text(string='Opciones de Selección')
     default_value = fields.Text(string='Valor por Defecto')
 
+    def action_open_delete_field_wizard(self):
+        """Elimina el campo dinámico de la actividad"""
+        self.ensure_one()
+        if self.dynamic_field_name:
+            self._remove_field_from_all_views(self.dynamic_field_name)
+            self.env['ir.model.fields'].search([
+                ('model', '=', 'subtask.activity'),
+                ('name', '=', self.dynamic_field_name)
+            ]).unlink()
+            self.dynamic_field_name = False
+            self.dynamic_field_label = False
+            self.dynamic_field_type = False
+            self.selection_options = False
+            self.default_value = False
+
     def open_dynamic_field_wizard(self):
         """Abre el wizard para crear campos dinámicos"""
         return {
@@ -156,7 +171,8 @@ class SubtaskActivity(models.Model):
             if tree_view:
                 arch_tree = f"""
                 <xpath expr="//field[@name='person']" position="after">
-                    <field name="{field_name}" invisible="context.get('subtask_id') != 1"/>/>
+                    <field name="{field_name}" invisible="context.get('subtask_id') != {self.id}"/>/>
+
                 </xpath>
                 """
                 
@@ -175,8 +191,7 @@ class SubtaskActivity(models.Model):
             if form_view:
                 arch_form = f"""
                 <xpath expr="//field[@name='person']" position="after">
-                    <field name="{field_name}" string="{self.dynamic_field_label or self.dynamic_field_name}"/>
-
+                     <field name="{field_name}" invisible="context.get('subtask_id') != {self.id}"/>
                 </xpath>
                 """
                 
