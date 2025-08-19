@@ -26,6 +26,8 @@
     'views/menu.xml',
     'views/dinamic_field_wizard_view.xml',
     'views/delete_dinamic_field_wizard_view.xml',
+    'views/subtask_activity_view.xml',
+    'views/add_field_subtask_view.xml',
     ],
     
     'installable': True,

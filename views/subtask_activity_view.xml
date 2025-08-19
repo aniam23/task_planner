@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_subtask_activity_tree" model="ir.ui.view">
+        <field name="name">subtask.activity.tree</field>
+        <field name="model">subtask.activity</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="allowed_member_ids" invisible="1"/>
+                <field name="name"/>
+                <field name="date_deadline"/>
+                <field name="done" invisible="1"/>
+                <field name="person"/>
+                <button 
+                    name="open_dynamic_field_wizard" 
+                    string="Agregar Campo Dinámico" 
+                    type="object" 
+                    class="btn-primary"
+                />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_subtask_activity_form" model="ir.ui.view">
+        <field name="name">subtask.activity.form</field>
+        <field name="model">subtask.activity</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="allowed_member_ids" invisible="1"/>
+                        <field name="name"/>
+                        <field name="subtask_id"/>
+                        <field name="date_deadline"/>
+                        <field name="person" options="{'no_create': True}"/>
+                        <field name="done" invisible="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

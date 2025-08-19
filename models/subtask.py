@@ -77,6 +77,22 @@ class SubtaskBoard(models.Model):
         store=False  # No necesitamos almacenarlo, se calcula dinámicamente
     )
 
+    def open_activities_action(self):
+        self.ensure_one()
+        return {
+            'name': _('Actividades de %s') % self.name,
+            'type': 'ir.actions.act_window',
+            'res_model': 'subtask.activity',
+            'view_mode': 'form',
+            'domain': [('subtask_id', '=', self.id)],
+            'context': {
+                'default_subtask_id': self.id,
+                'default_person': self.person.id if self.person else False,
+                'search_default_subtask_id': self.id
+            },
+            'target': 'current',  # Puedes usar 'new' para un popup
+        }
+
     def _compute_has_dynamic_fields(self):
         """Actualización optimizada del campo computado"""
         dynamic_count = self.env['ir.model.fields'].search_count([
@@ -107,7 +123,7 @@ class SubtaskBoard(models.Model):
         if not clean_name.startswith('x_'):
             clean_name = f'x_{clean_name}'
         return clean_name
-        
+
     @api.model
     def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
         res = super(SubtaskBoard, self).fields_view_get(
@@ -154,51 +170,6 @@ class SubtaskBoard(models.Model):
 
         return res
 
-    @api.model
-    def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
-        res = super(SubtaskBoard, self).fields_view_get(
-            view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu
-        )
-
-        if view_type == 'form':
-            # Buscar campos dinámicos
-            dynamic_fields = self.env['ir.model.fields'].search([
-                ('model', '=', self._name),
-                ('name', 'like', 'x_%'),
-                ('state', '=', 'manual')
-            ])
-
-            if dynamic_fields:
-                doc = etree.XML(res['arch'])
-
-                # Buscar el contenedor de campos dinámicos
-                for node in doc.xpath("//div[@name='dynamic_fields']"):
-                    parent = node.getparent()
-
-                    # Crear un grupo para cada campo dinámico
-                    for field in dynamic_fields:
-                        field_node = etree.Element('field', {
-                            'name': field.name,
-                            'string': field.field_description,
-                            'optional': 'show'
-                        })
-
-                        # Añadir widget apropiado según el tipo de campo
-                        if field.ttype == 'selection':
-                            field_node.set('widget', 'selection')
-                        elif field.ttype == 'boolean':
-                            field_node.set('widget', 'boolean')
-                        elif field.ttype in ['date', 'datetime']:
-                            field_node.set('widget', field.ttype)
-
-                        parent.insert(parent.index(node), field_node)
-
-                    # Eliminar el nodo marcador si lo prefieres
-                    # parent.remove(node)
-
-                res['arch'] = etree.tostring(doc, encoding='unicode')
-
-        return res
     @api.depends()
     def _compute_dynamic_fields_data(self):
         """Devuelve los campos dinámicos como JSON string"""
