@@ -48,6 +48,13 @@ class AddFieldSubtaskWizard(models.TransientModel):
         readonly=True
     )
 
+    field_to_delete = fields.Many2one(
+        'ir.model.fields',
+        string="Campo a eliminar",
+        required=True,
+        domain="[('model', '=', 'subtask.board'), ('state', '=', 'manual')]"
+    )
+
     @api.model
     def _default_subtask_id(self):
         """Obtiene la subtarea del contexto"""
@@ -92,30 +99,21 @@ class AddFieldSubtaskWizard(models.TransientModel):
             # 3. Actualizar vistas
             self._update_views(field_name)
 
-            # 4. Intentar recargar el modelo (pero no fallar si hay error)
-            try:
-                self._reload_model()
-            except Exception as reload_error:
-                _logger.warning("⚠️  Advertencia en recarga: %s. El campo se creó pero puede requerir reinicio.", str(reload_error))
+            # 4. Limpiar cachés de forma segura
+            self._safe_cache_clear()
 
             _logger.info("✅ Campo %s creado exitosamente para actividades de la subtarea %s", 
                         field_name, self.subtask_id.name)
 
-            # Mostrar mensaje de éxito
+            # 5. Recargar la página automáticamente
             return {
                 'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': _('Campo Creado'),
-                    'message': _('El campo %s se creó exitosamente. Puede requerir recargar la página.') % field_name,
-                    'sticky': False,
-                    'next': {'type': 'ir.actions.act_window_close'},
-                }
+                'tag': 'reload',
             }
 
         except Exception as e:
             _logger.error("❌ Error creando campo: %s", str(e))
-            # Intentar revertir cambios si hay error
+            # Revertir cambios si hay error
             try:
                 self.env.cr.execute(f"ALTER TABLE subtask_activity DROP COLUMN IF EXISTS {field_name}")
                 self.env['ir.model.fields'].search([
@@ -184,13 +182,54 @@ class AddFieldSubtaskWizard(models.TransientModel):
         except Exception as e:
             _logger.error("❌ Error creando columna: %s", str(e))
             raise UserError(_("Error técnico al crear el campo. Consulte los logs."))
+    
+    def _safe_cache_clear(self):
+        """Limpieza segura de cachés sin recargar modelos"""
+        try:
+            # Limpiar cachés del registry
+            registry = self.env.registry
+            if hasattr(registry, 'clear_cache'):
+                registry.clear_cache()
+            
+            # Limpiar cachés del environment
+            if hasattr(self.env, 'clear_caches'):
+                self.env.clear_caches()
+            elif hasattr(self.env, 'invalidate_all'):
+                self.env.invalidate_all()
+                
+            # Limpiar cachés específicos de campos
+            if hasattr(self.env.registry, '_field_defs'):
+                if 'subtask.activity' in self.env.registry._field_defs:
+                    del self.env.registry._field_defs['subtask.activity']
+                    
+            _logger.info("✅ Cachés limpiados de forma segura")
+            
+        except Exception as e:
+            _logger.info("ℹ️  Info de caché: %s", str(e))
+
+    def get_dynamic_fields_for_subtask(self, subtask_id):
+        """Obtiene los campos dinámicos específicos para una subtarea"""
+        all_dynamic_fields = self.env['ir.model.fields'].search([
+            ('model', '=', 'subtask.activity'),
+            ('name', 'like', 'x_%'),
+            ('state', '=', 'manual')
+        ])
+
+        # Filtrar campos que pertenecen a esta subtarea específica
+        # (Puedes implementar lógica más sofisticada aquí)
+        subtask_fields = []
+        for field in all_dynamic_fields:
+            if str(subtask_id) in field.help or f"ID: {subtask_id}" in field.help:
+                subtask_fields.append(field)
+
+        return subtask_fields
 
     def _register_field_in_ir(self, field_name):
-        """Crea el registro en ir.model.fields para subtask.activity"""
+        """Crea el registro en ir.model.fields para subtask.activity con info de subtarea"""
         model_id = self.env['ir.model'].search([('model', '=', 'subtask.activity')], limit=1)
         if not model_id:
             raise UserError(_("Modelo subtask.activity no encontrado"))
-        
+
         field_vals = {
             'name': field_name,
             'model_id': model_id.id,
@@ -198,8 +237,10 @@ class AddFieldSubtaskWizard(models.TransientModel):
             'ttype': self.field_type,
             'state': 'manual',
             'store': True,
+            # Agregar metadata para identificar la subtarea
+            'help': f"Campo dinámico para subtarea: {self.subtask_id.name} (ID: {self.subtask_id.id})",
         }
-        
+
         # Manejar campos de selección
         if self.field_type == 'selection' and self.selection_options:
             options = []
@@ -210,11 +251,12 @@ class AddFieldSubtaskWizard(models.TransientModel):
                     options.append((key.strip(), val.strip()))
             if options:
                 field_vals['selection'] = str(options)
-        
+
         try:
             self.env['ir.model.fields'].create(field_vals)
-            _logger.info("✅ Campo %s registrado en ir.model.fields para subtask.activity", field_name)
-            
+            _logger.info("✅ Campo %s registrado en ir.model.fields para subtask.activity de la subtarea %s", 
+                        field_name, self.subtask_id.name)
+
         except Exception as e:
             _logger.error("❌ Error registrando campo: %s", str(e))
             # Revertir la columna de la BD si falla el registro
@@ -225,54 +267,63 @@ class AddFieldSubtaskWizard(models.TransientModel):
             raise UserError(_("Error al registrar el campo. Consulte los logs."))
 
     def _update_views(self, field_name):
-        """Actualiza las vistas de subtask.activity para incluir el nuevo campo"""
+        """Actualiza las vistas de subtask.activity para incluir el nuevo campo con condición de subtarea"""
         try:
+            field_label = self.field_label or self.field_name
+
             # Vista Tree - Buscar la vista tree de subtask.activity
             tree_view = self.env.ref('task_planner.view_subtask_activity_tree', raise_if_not_found=False)
-            
+
             if tree_view:
-                # Crear una vista heredada para el tree view
+                # Crear una vista heredada para el tree view con condición de subtarea
+                # Asegurarnos de incluir subtask_id en la vista si no está presente
                 arch_tree = f"""
                 <data>
                     <xpath expr="//field[@name='person']" position="after">
-                        <field name="{field_name}" string="{self.field_label}"/>
+                        
+                        <field name="{field_name}" string="{field_label}" 
+                               invisible="context.get('default_subtask_id') != {self.subtask_id.id}"/>
+                             
                     </xpath>
                 </data>
                 """
-                
+
                 self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.tree.dynamic.{field_name}',
+                    'name': f'subtask.activity.tree.dynamic.{field_name}.{self.subtask_id.id}',
                     'model': 'subtask.activity',
                     'inherit_id': tree_view.id,
                     'arch': arch_tree,
                     'type': 'tree',
                     'priority': 100,
                 })
-                _logger.info("✅ Vista tree de subtask.activity actualizada con campo %s", field_name)
-            
+                _logger.info("✅ Vista tree actualizada con campo %s para subtarea %s", field_name, self.subtask_id.id)
+
             # Vista Form - Buscar la vista form de subtask.activity
             form_view = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
-            
+
             if form_view:
-                # Crear una vista heredada para el form view
+                # Crear una vista heredada para el form view con condición de subtarea
+                # Asegurarnos de incluir subtask_id en la vista si no está presente
                 arch_form = f"""
                 <data>
                     <xpath expr="//field[@name='person']" position="after">
-                        <field name="{field_name}" string="{self.field_label}"/>
+                        <field name="subtask_id" invisible="1"/>
+                        <field name="{field_name}" string="{field_label}" 
+                               attrs="{{'invisible': [('subtask_id', '!=', {self.subtask_id.id})]}}"/>
                     </xpath>
                 </data>
                 """
-                
+
                 self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.form.dynamic.{field_name}',
+                    'name': f'subtask.activity.form.dynamic.{field_name}.{self.subtask_id.id}',
                     'model': 'subtask.activity',
                     'inherit_id': form_view.id,
                     'arch': arch_form,
                     'type': 'form',
                     'priority': 100,
                 })
-                _logger.info("✅ Vista form de subtask.activity actualizada con campo %s", field_name)
-            
+                _logger.info("✅ Vista form actualizada con campo %s para subtarea %s", field_name, self.subtask_id.id)
+
         except Exception as e:
             _logger.error("❌ Error actualizando vistas: %s", str(e))
             raise UserError(_("Error al actualizar vistas. Consulte los logs."))
@@ -281,10 +332,10 @@ class AddFieldSubtaskWizard(models.TransientModel):
         """Fuerza la recarga del modelo subtask.activity de forma segura"""
         try:
             _logger.info("🔁 Iniciando recarga segura del modelo")
-            
+
             # Método más seguro: no intentar recargar el modelo completamente
             # En su lugar, limpiar cachés y forzar recarga en la siguiente solicitud
-            
+
             # 1. Limpiar cachés básicos
             try:
                 # Limpiar caché del registry si está disponible
@@ -293,14 +344,14 @@ class AddFieldSubtaskWizard(models.TransientModel):
                     _logger.info("✅ Cache del registry limpiado")
             except Exception as e:
                 _logger.warning("⚠️  Error limpiando cache del registry: %s", str(e))
-            
+
             # 2. Limpiar cachés específicos
             try:
                 self.env.registry._clear_cache()
                 _logger.info("✅ Cache interno del registry limpiado")
             except:
                 pass
-                
+
             try:
                 self.env.invalidate_all()
                 _logger.info("✅ Environment invalidado")
@@ -316,11 +367,29 @@ class AddFieldSubtaskWizard(models.TransientModel):
                         _logger.info("✅ Definiciones de campos limpiadas")
             except:
                 pass
-                
+
             _logger.info("✅ Recarga segura completada - el modelo se cargará en la próxima solicitud")
-            
+
         except Exception as e:
             _logger.warning("⚠️  Advertencia en recarga segura: %s", str(e))
             # No es crítico, el campo ya está creado
+
+    
+
+    # Método para obtener los campos dinámicos de la subtarea actual
+    @api.onchange('subtask_id')
+    def _onchange_subtask_id(self):
+        """Filtra los campos dinámicos por la subtarea actual"""
+        if self.subtask_id:
+            domain = [
+                ('model', '=', 'subtask.activity'),
+                ('name', 'like', 'x_%'),
+                ('state', '=', 'manual'),
+                '|',
+                ('help', 'ilike', f"ID: {self.subtask_id.id}"),
+                ('help', 'ilike', f"subtarea: {self.subtask_id.name}")
+            ]
+            return {'domain': {'field_to_delete': domain}}
+        return {'domain': {'field_to_delete': []}}
 
     

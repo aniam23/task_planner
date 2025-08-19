@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_delete_dynamic_field_wizard_form" model="ir.ui.view">
+        <field name="name">delete.dynamic.field.wizard.form</field>
+        <field name="model">delete.dynamic.field.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Eliminar Campo Dinámico">
+                <sheet>
+                    <group>
+                        <group string="Selección de Campo">
+                           
+                            <field name="field_to_delete" 
+                                   class="oe_inline"
+                                   required="1"
+                                   options="{'no_open': true, 'no_create': true}"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <!-- <button name="action_show_all_dynamic_fields" 
+                            string="Ver Todos los Campos" 
+                            type="object" 
+                            class="btn-secondary"/> -->
+                    <button name="action_delete_dynamic_field" 
+                            string="Eliminar Campo Seleccionado" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button string="Cancelar" 
+                            class="btn-default" 
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

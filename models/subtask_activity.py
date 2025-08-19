@@ -35,21 +35,19 @@ class SubtaskActivity(models.Model):
     selection_options = fields.Text(string='Opciones de Selección')
     default_value = fields.Text(string='Valor por Defecto')
 
-    # En el modelo subtask.board
-    # En el modelo subtask.board (no en subtask.activity)
     def open_dynamic_field_wizard(self):
-        """Abre el wizard para crear campos dinámicos en actividades"""
-        self.ensure_one()
+        """Abre el wizard para crear campos dinámicos"""
         return {
             'type': 'ir.actions.act_window',
-            'name': f'Crear Campo para Actividades de {self.name}',
+            'name': 'Crear Campo Dinámico',
             'res_model': 'add.field.subtask.wizard',
             'view_mode': 'form',
             'target': 'new',
-        'context': {
-            'default_subtask_id': self.id,
+            'context': {
+                'default_activity_id': self.id,
+                'default_task_board_id': self.task_board_id.id,
+            }
         }
-    }
 
     def action_create_dynamic_field(self):
         """Crea el campo dinámico en la actividad"""
@@ -81,148 +79,6 @@ class SubtaskActivity(models.Model):
             'type': 'ir.actions.client',
             'tag': 'reload',
         }
-
-    def _create_column_in_db(self, field_name):
-        """Crea la columna física en la base de datos"""
-        column_type = {
-            'char': 'VARCHAR(255)',
-            'integer': 'INTEGER',
-            'float': 'NUMERIC',
-            'boolean': 'BOOLEAN',
-            'date': 'DATE',
-            'datetime': 'TIMESTAMP',
-            'selection': 'VARCHAR(255)'
-        }.get(self.field_type)
-        
-        if not column_type:
-            raise UserError(_("Tipo de campo no válido: %s") % self.field_type)
-        
-        try:
-            query = f"""
-                ALTER TABLE subtask_activity 
-                ADD COLUMN {field_name} {column_type}
-            """
-            self.env.cr.execute(query)
-            _logger.info("✅ Columna %s creada en BD", field_name)
-            
-        except Exception as e:
-            _logger.error("❌ Error creando columna: %s", str(e))
-            raise UserError(_("Error técnico al crear el campo. Consulte los logs."))
-
-    def _register_field_in_ir(self, field_name):
-        """Crea el registro en ir.model.fields"""
-        model_id = self.env['ir.model'].search([('model', '=', 'subtask.activity')], limit=1)
-        if not model_id:
-            raise UserError(_("Modelo subtask.activity no encontrado"))
-        
-        field_vals = {
-            'name': field_name,
-            'model_id': model_id.id,
-            'field_description': self.field_label or self.field_name,
-            'ttype': self.field_type,
-            'state': 'manual',
-            'store': True,
-        }
-        
-        # Manejar campos de selección
-        if self.field_type == 'selection' and self.selection_options:
-            options = []
-            for line in self.selection_options.split('\n'):
-                line = line.strip()
-                if line and ':' in line:
-                    key, val = line.split(':', 1)
-                    options.append((key.strip(), val.strip()))
-            if options:
-                field_vals['selection'] = str(options)
-        
-        try:
-            self.env['ir.model.fields'].create(field_vals)
-            _logger.info("✅ Campo %s registrado en ir.model.fields", field_name)
-            
-        except Exception as e:
-            _logger.error("❌ Error registrando campo: %s", str(e))
-            # Revertir la columna de la BD si falla el registro
-            try:
-                self.env.cr.execute(f"ALTER TABLE subtask_activity DROP COLUMN IF EXISTS {field_name}")
-            except:
-                pass
-            raise UserError(_("Error al registrar el campo. Consulte los logs."))
-
-    def _update_views(self, field_name):
-        """Actualiza las vistas para incluir el nuevo campo"""
-        try:
-            # Vista Tree - Buscar la vista tree de subtask.activity
-            tree_view = self.env.ref('task_planner.view_subtask_activity_tree', raise_if_not_found=False)
-            
-            if tree_view:
-                # Crear una vista heredada para el tree view
-                arch_tree = f"""
-                <data>
-                    <xpath expr="//field[@name='person']" position="after">
-                        <field name="{field_name}" string="{self.field_label}"/>
-                    </xpath>
-                </data>
-                """
-                
-                self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.tree.dynamic.{field_name}',
-                    'model': 'subtask.activity',
-                    'inherit_id': tree_view.id,
-                    'arch': arch_tree,
-                    'type': 'tree',
-                    'priority': 100,
-                })
-                _logger.info("✅ Vista tree actualizada con campo %s", field_name)
-            
-            # Vista Form - Buscar la vista form de subtask.activity
-            form_view = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
-            
-            if form_view:
-                # Crear una vista heredada para el form view
-                arch_form = f"""
-                <data>
-                    <xpath expr="//field[@name='person']" position="after">
-                        <field name="{field_name}" string="{self.field_label}"/>
-                    </xpath>
-                </data>
-                """
-                
-                self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.form.dynamic.{field_name}',
-                    'model': 'subtask.activity',
-                    'inherit_id': form_view.id,
-                    'arch': arch_form,
-                    'type': 'form',
-                    'priority': 100,
-                })
-                _logger.info("✅ Vista form actualizada con campo %s", field_name)
-            
-        except Exception as e:
-            _logger.error("❌ Error actualizando vistas: %s", str(e))
-            raise UserError(_("Error al actualizar vistas. Consulte los logs."))
-
-    def _reload_model(self):
-        """Fuerza la recarga del modelo en el registro"""
-        try:
-            # Limpiar cachés
-            self.env.registry.clear_cache()
-            self.env['ir.model'].clear_caches()
-            self.env['ir.model.fields'].clear_caches()
-            self.env['ir.ui.view'].clear_caches()
-            
-            # Recargar el modelo
-            if 'subtask.activity' in self.env.registry.models:
-                del self.env.registry.models['subtask.activity']
-            
-            self.env.registry.setup_models(self.env.cr)
-            self.pool.setup_models(self.env.cr, ['subtask.activity'], {})
-            
-            _logger.info("✅ Modelo subtask.activity recargado")
-            
-        except Exception as e:
-
-            _logger.error("❌ Error recargando modelo: %s", str(e))
-            raise UserError(_("Error al recargar el modelo. Consulte los logs."))
 
     def _generate_field_name(self):
         """Genera nombre técnico válido con prefijo x_"""
@@ -300,7 +156,7 @@ class SubtaskActivity(models.Model):
             if tree_view:
                 arch_tree = f"""
                 <xpath expr="//field[@name='person']" position="after">
-                    <field name="{field_name}" string="{self.dynamic_field_label or self.dynamic_field_name}"/>
+                    <field name="{field_name}" invisible="context.get('subtask_id') != 1"/>/>
                 </xpath>
                 """
                 
@@ -320,6 +176,7 @@ class SubtaskActivity(models.Model):
                 arch_form = f"""
                 <xpath expr="//field[@name='person']" position="after">
                     <field name="{field_name}" string="{self.dynamic_field_label or self.dynamic_field_name}"/>
+
                 </xpath>
                 """
                 
