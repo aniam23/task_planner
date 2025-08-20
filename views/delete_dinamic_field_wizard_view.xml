@@ -11,7 +11,7 @@
                         <field name="field_to_delete" 
                                domain="[('model','=','subtask.board'),('state','=','manual')]"
                                required="1"/>
-                    </group>
+                    </group> 
                 </sheet>
                 <footer>
                     <button name="action_delete_dynamic_field" 
