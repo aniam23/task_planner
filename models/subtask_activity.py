@@ -163,51 +163,61 @@ class SubtaskActivity(models.Model):
             raise UserError(_("Error al registrar el campo. Consulte los logs."))
 
     def _update_views(self, field_name):
-        """Actualiza las vistas para incluir el nuevo campo"""
+        """Actualiza las vistas de subtask.activity para incluir el nuevo campo con condición de subtarea"""
         try:
-            # Vista Tree - Crear una vista heredada
+            field_label = self.field_label or self.field_name
+    
+            # Vista Tree - Buscar la vista tree de subtask.activity
             tree_view = self.env.ref('task_planner.view_subtask_activity_tree', raise_if_not_found=False)
-            
+    
             if tree_view:
                 arch_tree = f"""
-                <xpath expr="//field[@name='person']" position="after">
-                    <field name="{field_name}" invisible="context.get('subtask_id') != {self.id}"/>/>
-
-                </xpath>
+                <data>
+                    <xpath expr="//field[@name='person']" position="after">
+                        <field name="{field_name}" string="{field_label}" 
+                               optional="show"
+                               invisible="context.get('default_subtask_id') != {self.subtask_id.id} or not context.get('default_subtask_id')"/>
+                    </xpath>
+                </data>
                 """
-                
-                # Crear vista heredada para tree
+    
                 self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.tree.{field_name}',
+                    'name': f'subtask.activity.tree.dynamic.{field_name}.{self.subtask_id.id}',
                     'model': 'subtask.activity',
                     'inherit_id': tree_view.id,
                     'arch': arch_tree,
                     'type': 'tree',
+                    'priority': 100,
                 })
-            
-            # Vista Form - Crear una vista heredada
+                _logger.info("✅ Vista tree actualizada con campo %s para subtarea %s", field_name, self.subtask_id.id)
+    
+            # Vista Form - Buscar la vista form de subtask.activity
             form_view = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
-            
+    
             if form_view:
                 arch_form = f"""
-                <xpath expr="//field[@name='person']" position="after">
-                     <field name="{field_name}" invisible="context.get('subtask_id') != {self.id}"/>
-                </xpath>
+                <data>
+                    <xpath expr="//field[@name='person']" position="after">
+                        <field name="subtask_id" invisible="1"/>
+                        <field name="{field_name}" string="{field_label}" 
+                               optional="show"
+                               attrs="{{'invisible': [('subtask_id', '!=', {self.subtask_id.id})]}}"/>
+                    </xpath>
+                </data>
                 """
-                
-                # Crear vista heredada para form
+    
                 self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.form.{field_name}',
+                    'name': f'subtask.activity.form.dynamic.{field_name}.{self.subtask_id.id}',
                     'model': 'subtask.activity',
                     'inherit_id': form_view.id,
                     'arch': arch_form,
                     'type': 'form',
+                    'priority': 100,
                 })
-            
-            _logger.info("Vistas actualizadas con campo %s", field_name)
-            
+                _logger.info("✅ Vista form actualizada con campo %s para subtarea %s", field_name, self.subtask_id.id)
+    
         except Exception as e:
-            _logger.error("Error actualizando vistas: %s", str(e))
+            _logger.error("❌ Error actualizando vistas: %s", str(e))
             raise UserError(_("Error al actualizar vistas. Consulte los logs."))
 
     def _reload_model(self):
