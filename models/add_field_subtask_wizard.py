@@ -48,12 +48,12 @@ class AddFieldSubtaskWizard(models.TransientModel):
         readonly=True
     )
 
-    field_to_delete = fields.Many2one(
-        'ir.model.fields',
-        string="Campo a eliminar",
-        required=True,
-        domain="[('model', '=', 'subtask.board'), ('state', '=', 'manual')]"
-    )
+    # field_to_delete = fields.Many2one(
+    #     'ir.model.fields',
+    #     string="Campo a eliminar",
+    #     required=True,
+    #     domain="[('model', '=', 'subtask.board'), ('state', '=', 'manual')]"
+    # )
 
     @api.model
     def _default_subtask_id(self):
@@ -376,20 +376,6 @@ class AddFieldSubtaskWizard(models.TransientModel):
 
     
 
-    # Método para obtener los campos dinámicos de la subtarea actual
-    @api.onchange('subtask_id')
-    def _onchange_subtask_id(self):
-        """Filtra los campos dinámicos por la subtarea actual"""
-        if self.subtask_id:
-            domain = [
-                ('model', '=', 'subtask.activity'),
-                ('name', 'like', 'x_%'),
-                ('state', '=', 'manual'),
-                '|',
-                ('help', 'ilike', f"ID: {self.subtask_id.id}"),
-                ('help', 'ilike', f"subtarea: {self.subtask_id.name}")
-            ]
-            return {'domain': {'field_to_delete': domain}}
-        return {'domain': {'field_to_delete': []}}
+    
 
     

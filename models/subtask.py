@@ -77,6 +77,8 @@ class SubtaskBoard(models.Model):
         store=False  # No necesitamos almacenarlo, se calcula dinámicamente
     )
 
+   
+
     def open_activities_action(self):
         self.ensure_one()
         return {
@@ -418,31 +420,53 @@ class SubtaskBoard(models.Model):
         self._cr.execute(query)
 
     def _update_tree_view(self, field_name, field_label):
-        """Update tree view to show new field with the info"""
+        """Actualiza la vista tree de subtask.board para incluir el nuevo campo, solo visible para la tarea actual"""
         try:
-            view = self.env.ref('task_planner.view_subtask_tree')
+            # Buscar la vista base
+            view = self.env.ref('task_planner.view_subtask_tree', raise_if_not_found=False)
+            if not view:
+                raise UserError(_("No se encontró la vista 'task_planner.view_subtask_tree'"))
+
+            # Obtener información del widget (si aplica)
+            widget_info = self._get_tree_widget_for_field() or ""
+
+            # Crear vista heredada solo para esta task
+         
             arch = f"""
             <data>
-                <xpath expr="//tree" position="inside">
-                    <field name="{field_name}" string="{field_label}" 
-                           optional="show" {self._get_tree_widget_for_field()}  invisible="context.get('name') != {self.name}"/>
+                <xpath expr="//field[@name='files']" position="after">
+                    <field name="{field_name}" string="{field_label}" {widget_info}
+                           optional="show"
+                           invisible="context.get('default_task_id') != {self.task_id.id} or not context.get('default_task_id')"/>
                 </xpath>
             </data>
             """
 
+            # Verificar si ya existe una vista para este campo y tarea
+            existing_view = self.env['ir.ui.view'].search([
+                ('name', '=', f'subtask.board.tree.dynamic.{field_name}.{self.task_id.id}'),
+                ('model', '=', 'subtask.board')
+            ])
+
+            if existing_view:
+                existing_view.unlink()
+
             self.env['ir.ui.view'].create({
-                'name': f'subtask.board.tree.dynamic.{field_name}',
-                'model': self._name,
+                'name': f'subtask.board.tree.dynamic.{field_name}.{self.task_id.id}',
+                'model': 'subtask.board',
                 'inherit_id': view.id,
                 'arch': arch,
                 'type': 'tree',
-                'priority': 99,
+                'priority': 100,
             })
 
             self.env['ir.ui.view'].clear_caches()
+            _logger.info("✅ Vista tree actualizada con campo %s para tarea %s", field_name, self.task_id.id)
+
         except Exception as e:
-            _logger.error("View update failed: %s", str(e))
-            raise
+            _logger.error("❌ Error actualizando la vista: %s", str(e))
+            raise UserError(_("Error al actualizar la vista. Consulte los logs."))
+
 
     def action_open_delete_field_wizard(self):
         self.ensure_one()
