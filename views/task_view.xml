@@ -193,7 +193,7 @@
                             string="Eliminar Campo"
                             type="object"
                             class="btn-danger"
-                            groups="base.group_user"/>
+                           />
                 </tree>
             </field>
         </record>

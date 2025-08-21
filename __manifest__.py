@@ -19,16 +19,16 @@
 
     'data': [
     'security/ir.model.access.csv',  
-    'security/boards_security.xml',  
-    'views/boards_view.xml',         
+    'security/boards_security.xml', 
+    'views/dinamic_field_wizard_view.xml', 
+    'views/boards_view.xml',   
+    'views/delete_field_wizard_view.xml',
+    'views/delete_field_subtask_view.xml',      
     'views/task_view.xml',
     'views/sub_task_view.xml',
     'views/menu.xml',
-    'views/dinamic_field_wizard_view.xml',
-    'views/delete_dinamic_field_wizard_view.xml',
     'views/subtask_activity_view.xml',
-    'views/add_field_subtask_view.xml',
-    'views/delete_field_subtask_view.xml',
+    'views/add_field_subtask_view.xml'
     ],
     
     'installable': True,

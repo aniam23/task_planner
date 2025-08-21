@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_delete_field_subtask_wizard_form" model="ir.ui.view">
-        <field name="name">delete.field.subtask.wizard.form</field>
-        <field name="model">delete.field.subtask.wizard</field>
+    <record id="view_delete_dynamic_field_wizard_form" model="ir.ui.view">
+        <field name="name">delete.dynamic.field.wizard.form</field>
+        <field name="model">delete.dynamic.field.wizard</field>
         <field name="arch" type="xml">
             <form string="Eliminar Campo Dinámico de Actividad">
                 <sheet>
@@ -13,7 +13,7 @@
                                    string="Campo a eliminar"
                                    required="1"
                                    options="{'no_open': true, 'no_create': true}"
-                                   domain="[('model','=','subtask.activity'),('state','=','manual'),('name','like','x_%')]"/>
+                                   domain="[('model','=','subtask.board'),('state','=','manual'),('name','like','x_%')]"/>
                         </group>
                     </group>
                 </sheet>
@@ -30,10 +30,11 @@
         </field>
     </record>
 
-    <record id="action_open_delete_dynamic_field_activity_wizard" model="ir.actions.act_window">
-        <field name="name">Eliminar Campo Dinámico de Actividad</field>
+    <record id="action_open_delete_dynamic_field_wizard" model="ir.actions.act_window">
+        <field name="name">Eliminar Campo Dinámico</field>
         <field name="res_model">delete.dynamic.field.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
+        <field name="context">{'default_subtask_id': active_id}</field>
     </record>
 </odoo>
