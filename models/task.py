@@ -22,10 +22,24 @@ class TaskBoard(models.Model):
     completion_date = fields.Datetime(string='Due Date')
     department_id = fields.Many2one(
     'boards.planner', 
-    string='Departamento', 
+    string='Departamento del Grupo', 
     ondelete='cascade',
     domain="[]"
     )
+    hr_department_id = fields.Many2one(
+        'hr.department',
+        string='Departamento',
+        related='department_id.department_id',
+        store=True,
+        readonly=True
+    )
+
+    has_dynamic_fields = fields.Boolean(
+        string="Tiene Campos Dinámicos",
+        compute='_compute_has_dynamic_fields',
+        store=False  # No almacenado, solo computado
+    )
+
     dynamic_field_to_remove = fields.Selection(
         selection='_get_dynamic_field_options',
         string='Campo a eliminar',
@@ -82,14 +96,171 @@ class TaskBoard(models.Model):
     dynamic_fields_data = fields.Text(string='Dynamic Fields Data')
     dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
 
+   
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
-    has_dynamic_fields = fields.Boolean(
-        string="Has Dynamic Fields",
-        compute='_compute_has_dynamic_fields',
-        store=False  # No necesitamos almacenarlo, se calcula dinámicamente
-    )
+    @api.depends('department_id')
+    def _compute_allowed_members(self):
+        for task in self:
+            if task.department_id and task.department_id.pick_from_dept:
+                # Usar los miembros del tablero (boards.planner)
+                task.allowed_member_ids = task.department_id.member_ids
+            else:
+                # Permitir cualquier empleado si no hay restricción
+                task.allowed_member_ids = self.env['hr.employee'].search([])
+
+    @api.depends('subtask_ids.state')
+    def _compute_progress(self):
+        for task in self:
+            subtasks = task.subtask_ids
+            total = len(subtasks)
+            done = len(subtasks.filtered(lambda x: x.state == 'done'))
+            task.total_subtasks = total
+            task.completed_subtasks = done
+            progress = total and (done * 100.0 / total) or 0
+            task.progress = progress
+            
+            if progress >= 100 and task.state != 'done':
+                task.state = 'done'
+            elif progress > 0 and progress < 100 and task.state != 'in_progress':
+                task.state = 'in_progress'
+
+    @api.depends('state')
+    def _compute_color_from_state(self):
+        color_mapping = {
+            'new': 2,      # Amarillo
+            'in_progress': 5,  # Naranja
+            'done': 10,     # Verde
+            'stuck': 1,     # Rojo
+            'view_subtasks': 4  # Azul claro
+        }
+        for task in self:
+            task.color = color_mapping.get(task.state, 0)
+
+    def _compute_has_dynamic_fields(self):
+        """Compute si hay campos dinámicos para mostrar la sección"""
+        dynamic_fields = self.env['ir.model.fields'].search([
+            ('model', '=', 'task.board'),
+            ('name', 'like', 'x_%'),
+            ('store', '=', True)
+        ])
+        for record in self:
+            record.has_dynamic_fields = bool(dynamic_fields)
+
+    @api.depends('dynamic_fields_data')
+    def _compute_dynamic_fields(self):
+        for task in self:
+            try:
+                dynamic_data = json.loads(task.dynamic_fields_data or '{}')
+                field_info = {
+                    'fields': [],
+                    'field_attrs': {}
+                }
+                
+                for field_name, field_config in dynamic_data.items():
+                    if isinstance(field_config, dict):
+                        field_info['fields'].append(field_name)
+                        field_info['field_attrs'][field_name] = {
+                            'string': field_config.get('label', field_name.replace('_', ' ').title()),
+                            'widget': field_config.get('widget', False),
+                            'options': field_config.get('options', {})
+                        }
+                
+                task.dynamic_field_list = field_info
+            except Exception as e:
+                _logger.error("Error computing dynamic fields: %s", str(e))
+                task.dynamic_field_list = {
+                    'fields': [],
+                    'field_attrs': {}
+                }
+
+    # --------------------------------------------
+    # CONSTRAINTS AND VALIDATION
+    # --------------------------------------------
+    @api.model
+    def create(self, vals):
+        # Validación de campos obligatorios
+        required_fields = ['name', 'person', 'department_id']
+        for field in required_fields:
+            if not vals.get(field):
+                raise ValidationError(_("El campo %s es obligatorio") % field)
+        
+        # Validación de empleado en miembros permitidos
+        person_id = vals.get('person')
+        department_id = vals.get('department_id')
+        
+        if person_id and department_id:
+            employee = self.env['hr.employee'].browse(person_id)
+            department = self.env['boards.planner'].browse(department_id)
+            
+            if not employee.exists():
+                raise ValidationError(_("El empleado seleccionado no existe"))
+            
+            if not department.exists():
+                raise ValidationError(_("El tablero seleccionado no existe"))
+            
+            # Verificar si el empleado está en los miembros permitidos del tablero
+            if department.pick_from_dept and employee not in department.member_ids:
+                raise ValidationError(_(
+                    "El empleado %s no está en la lista de miembros permitidos del tablero %s. "
+                    "Verifica la asignación."
+                ) % (employee.name, department.name))
+        
+        return super().create(vals)
+
+    def write(self, vals):
+        for record in self:
+            # Verificar si se está modificando el nombre y si está vacío
+            if 'name' in vals and not vals['name']:
+                raise ValidationError(_("El nombre de la tarea no puede estar vacío"))
+            
+            # Obtener valores actuales o nuevos
+            current_person = vals.get('person', record.person.id)
+            current_department = vals.get('department_id', record.department_id.id)
+            
+            # Validar relación empleado-tablero
+            if current_person and current_department:
+                employee = self.env['hr.employee'].browse(current_person)
+                department = self.env['boards.planner'].browse(current_department)
+                
+                if not employee.exists():
+                    raise ValidationError(_("El empleado seleccionado no existe"))
+                
+                if not department.exists():
+                    raise ValidationError(_("El tablero seleccionado no existe"))
+                
+                # Verificar si el empleado está en los miembros permitidos del tablero
+                if department.pick_from_dept and employee not in department.member_ids:
+                    raise ValidationError(_(
+                        "El empleado %s no está en la lista de miembros permitidos del tablero %s. "
+                        "Verifica la asignación."
+                    ) % (employee.name, department.name))
+        
+        return super().write(vals)
+
+    @api.constrains('name', 'person', 'department_id')
+    def _check_required_fields(self):
+        """Validación adicional para integridad de datos"""
+        for record in self:
+            if not record.name:
+                raise ValidationError(_("El nombre de la tarea es obligatorio"))
+            if not record.person:
+                raise ValidationError(_("Debe asignar un responsable"))
+            if not record.department_id:
+                raise ValidationError(_("Debe seleccionar un tablero"))
+            
+            # Validar que el empleado esté en los miembros permitidos del tablero
+            if (record.department_id.pick_from_dept and 
+                record.person not in record.department_id.member_ids):
+                raise ValidationError(_(
+                    "El empleado %s no está en la lista de miembros permitidos del tablero %s. "
+                    "Verifica la asignación."
+                ) % (record.person.name, record.department_id.name))
+
+    # ... (el resto de los métodos se mantienen igual, solo asegúrate de que
+    # las referencias a 'department_id' sean consistentes)
+
     def action_toggle_subtasks(self):
         """Alternar visibilidad de subtareas sin cambiar el estado principal"""
         self.ensure_one()
@@ -98,21 +269,6 @@ class TaskBoard(models.Model):
             'state': 'view_subtasks' if not self.show_subtasks else self._get_previous_state()
         })
         
-    def action_open_activity_tree(self):
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'subtask.activity',
-            'view_mode': 'tree,form',
-            'target': 'current',
-            'domain': [('subtask_id', '=', self.id)],  # Filtra por la subtarea actual
-            'context': {
-            'default_subtask_id': self.id,  # Establece la subtarea actual por defecto
-            'search_default_subtask_id': self.id  # Filtra automáticamente
-        },
-        'name': f'Actividades de {self.name}'
-    }
-
     def _get_previous_state(self):
         """Obtener el estado apropiado basado en el progreso"""
         if self.progress >= 100:
@@ -1145,17 +1301,6 @@ class TaskBoard(models.Model):
                     selected_dept_id = int(selected_dept_id)
                 except ValueError:
                     raise ValidationError(_("El ID del departamento no es válido"))
-            
-            # Comparar IDs de departamento
-            if employee.department_id.id != selected_dept_id:
-                raise ValidationError(_(
-                    "El empleado %s pertenece al departamento %s, pero seleccionaste %s. "
-                    "Verifica la asignación."
-                ) % (
-                    employee.name,
-                    employee.department_id.name,
-                    self.env['hr.department'].browse(selected_dept_id).name
-                ))
         
         return super().create(vals)
 
