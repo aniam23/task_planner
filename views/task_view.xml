@@ -181,20 +181,23 @@
                     <field name="completion_date" widget="daterange" string="Fecha" options="{'no_open': True}"/>
                     <field name="files" widget="many2many_binary" string="Archivos" options="{'no_open': True}"/>
                     <!-- Botones de acción -->
-                    <button name="action_open_activity_tree" type="object" icon="fa-tasks" string="Actividades" class="oe_no_button"/>
+                    <button name="action_open_activity_tree" type="object" icon="fa-tasks" string="Ver Subtareas" class="oe_no_button"/>
+
                    
                     
                     <button name="action_open_dynamic_field_wizard" 
-                           string="Añadir Campo Dinámico" 
+                           string="Añadir Columna" 
                            type="object" 
                            class="btn-primary"
                             icon="fa-plus"/>
                     
                     <!-- Añade esto en tu vista de subtask.board -->
                     <button name="action_open_delete_field_wizard"
-                            string="Eliminar Campo"
+                            string="Eliminar Columna"
                             type="object"
                             class="btn-danger"
+                            icon="fa-trash"
+
                            />
                 </tree>
             </field>

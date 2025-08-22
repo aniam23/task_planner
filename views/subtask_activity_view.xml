@@ -12,16 +12,18 @@
                 <field name="person"/>
                 <button 
                     name="open_dynamic_field_wizard" 
-                    string="Agregar Campo Dinámico" 
+                    string="Agregar Columna" 
                     type="object" 
                     class="btn-primary"
+                    icon="fa-plus"
+
                 />
 
                 <button 
                     name="action_open_delete_field_wizard" 
-                    string="Eliminar Campo" 
+                    string="Eliminar Columna" 
                     type="object" 
-                    class="oe_stat_button"
+                    class="btn-danger"
                     icon="fa-trash"
                     groups="base.group_user"
                 />
