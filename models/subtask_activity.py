@@ -2,6 +2,7 @@ from odoo import models, fields, api, tools
 from odoo.exceptions import ValidationError, UserError
 import logging
 import re
+from .boards import STATES
 from lxml import etree
 
 _logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class SubtaskActivity(models.Model):
     person = fields.Many2one('hr.employee', string='Responsable')
     allowed_member_ids = fields.Many2many('hr.employee', string='Responsables', readonly=True)
     task_board_id = fields.Many2one('task.board', string='Grupo', related='subtask_id.task_id', store=True)
-
+    state = fields.Selection(STATES, default="new", string="Estado", tracking=True)
     # Campos para almacenar la información del campo dinámico
     dynamic_field_name = fields.Char(string='Nombre Técnico del Campo')
     dynamic_field_label = fields.Char(string='Etiqueta del Campo')

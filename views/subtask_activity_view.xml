@@ -4,10 +4,16 @@
         <field name="name">subtask.activity.tree</field>
         <field name="model">subtask.activity</field>
         <field name="arch" type="xml">
-            <tree>
+            <tree edit="false"
+                      create="false"
+                      decoration-danger="state == 'stuck'"
+                      decoration-warning="state == 'new'"
+                      decoration-info="state == 'in_progress'"
+                      decoration-success="state == 'done'">
                 <field name="allowed_member_ids" invisible="1"/>
                 <field name="name"/>
                 <field name="date_deadline"/>
+                 <field name="state"/>
                 <field name="done" invisible="1"/>
                 <field name="person"/>
                 <button 
@@ -43,6 +49,7 @@
                         <field name="subtask_id"/>
                         <field name="date_deadline"/>
                         <field name="person" options="{'no_create': True}"/>
+                         <field name="state"/>
                         <field name="done" invisible="1"/>
                     </group>
                 </sheet>
