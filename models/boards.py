@@ -7,7 +7,6 @@ STATES = [
     ('done', 'Done'),
     ('stuck', 'Stuck')
 ]
-
 class Boards(models.Model):
     _name = 'boards.planner'
     _description = 'Model designed to create or modify tasks assigned to employees'
@@ -17,7 +16,7 @@ class Boards(models.Model):
     responsible_person_id = fields.Many2one('hr.employee', string='Responsable', compute='_compute_responsible_person', store=True)
     pick_from_dept = fields.Boolean('Solo miembros del departamento')
     member_ids = fields.Many2many('hr.employee', string='Miembros')
-    task_ids = fields.One2many('task.board', 'department_id', invisible=True, string='Tareas')
+    task_ids = fields.One2many('task.board', 'department_id', invisible=True, string='Grupos')
 
     @api.depends('department_id', 'department_id.manager_id')
     def _compute_responsible_person(self):

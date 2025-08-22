@@ -66,7 +66,7 @@ class TaskBoard(models.Model):
     ], string='Estado', default='new', tracking=True)
     color = fields.Integer(string='Color', compute='_compute_color_from_state', store=True)
     files = fields.Many2many('ir.attachment', string='Agregar Archivos')
-    show_subtasks = fields.Boolean(string='Ver tareas')
+    show_subtasks = fields.Boolean(string='Ver tareas', invisible=True)
     # --------------------------------------------
     # SUBTASK RELATED FIELDS
     # --------------------------------------------
@@ -1320,9 +1320,7 @@ class TaskBoard(models.Model):
                 employee = self.env['hr.employee'].browse(current_person)
                 if not employee.exists():
                     raise ValidationError(_("El empleado seleccionado no existe"))
-                if employee.department_id.id != current_department:
-                    raise ValidationError(_("El empleado no pertenece al departamento seleccionado"))
-        
+              
         return super().write(vals)
 
     @api.constrains('name', 'person', 'department_id')

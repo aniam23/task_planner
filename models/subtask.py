@@ -14,29 +14,29 @@ class SubtaskBoard(models.Model):
     _name = 'subtask.board'
     _description = 'Subtarea del Planificador de Actividades'
     _inherit = ['mail.thread']
-
+    
     # ===========================
     # FIELD DEFINITIONS
     # ===========================
     
     # Basic fields
     sequence = fields.Integer(string='Sequence', default=10)
-    name = fields.Char(string='Task Name', required=True, tracking=True)
+    name = fields.Char(string='Nombre de la Tarea', required=True, tracking=True)
     completion_date = fields.Datetime(string="Timeline")
     drag = fields.Integer()
-    files = fields.Many2many('ir.attachment', string="Files")
-    state = fields.Selection(STATES, default="new", string="Status", tracking=True)
+    files = fields.Many2many('ir.attachment', string="Archivos")
+    state = fields.Selection(STATES, default="new", string="Estado", tracking=True)
     field_info = fields.Text(string="Ingresar datos para el campo") 
     
     # Relational fields
     task_id = fields.Many2one('task.board', string='Parent Task', ondelete='cascade')
     person = fields.Many2one(
         'hr.employee', 
-        string='Assigned To',
+        string='Responsable',
         tracking=True,
         domain="[('id', 'in', allowed_member_ids)]"
     )
-    activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Activities')
+    activity_line_ids = fields.One2many('subtask.activity', 'subtask_id', string='Actividades')
     
     # Dynamic fields management
     dynamic_field_name = fields.Char(string="Technical Name")
@@ -89,14 +89,15 @@ class SubtaskBoard(models.Model):
         for record in self:
             record.has_dynamic_fields = bool(dynamic_count)
 
-    @api.constrains('person', 'task_id')
-    def _check_person_selection(self):
-        for subtask in self:
-            if (subtask.task_id and subtask.task_id.department_id and 
-                subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids):
-                raise ValidationError(
-                    _("The assigned employee must be a member of the parent task's department")
-                )
+    # ELIMINADA: La constraint _check_person_selection que verificaba departamento
+    # @api.constrains('person', 'task_id')
+    # def _check_person_selection(self):
+    #     for subtask in self:
+    #         if (subtask.task_id and subtask.task_id.department_id and 
+    #             subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids):
+    #             raise ValidationError(
+    #                 ("")
+    #             )
 
     # ===========================
     # ACTION METHODS
@@ -326,107 +327,12 @@ class SubtaskBoard(models.Model):
             self.env['ir.ui.view'].create({
                 'name': f'subtask.board.tree.dynamic.{field_name}.{self.task_id.id}',
                 'model': 'subtask.board',
-                'inherit_id': view.id,
                 'arch': arch,
+                'inherit_id': view.id,
                 'type': 'tree',
                 'priority': 100,
             })
-
-            self.env['ir.ui.view'].clear_caches()
-            _logger.info("✅ Vista tree actualizada con campo %s para tarea %s", field_name, self.task_id.id)
-
         except Exception as e:
-            _logger.error("❌ Error actualizando la vista: %s", str(e))
-            raise UserError(_("Error al actualizar la vista. Consulte los logs."))
-
-    def _get_tree_widget_for_field(self):
-        """Get appropriate widget for field type"""
-        widget_map = {
-            'boolean': 'boolean',
-            'selection': 'selection',
-            'date': 'daterange',
-            'datetime': 'datetime',
-            'float': 'float',
-            'integer': 'integer',
-        }
-        widget = widget_map.get(self.dynamic_field_type, '')
-        return f'widget="{widget}"' if widget else ''
-
-    def _store_field_metadata(self, field_name):
-        """Store field configuration in JSON"""
-        try:
-            field_data = {
-                'name': field_name,
-                'label': self.dynamic_field_label,
-                'type': self.dynamic_field_type,
-                'created_at': fields.Datetime.now(),
-                'created_by': self.env.user.id,
-            }
-      
-            if self.dynamic_field_type == 'selection' and self.selection_options:
-                field_data['options'] = self.selection_options
-      
-            current_data = {}
-            if self.dynamic_fields_data:
-                try:
-                    current_data = json.loads(self.dynamic_fields_data)
-                except:
-                    current_data = {}
-      
-            current_data[field_name] = field_data
-            self.dynamic_fields_data = json.dumps(current_data)
-      
-        except Exception as e:
-            _logger.error("Metadata storage failed: %s", str(e))
-
-    # ===========================
-    # VIEW METHODS
-    # ===========================
-
-    @api.model
-    def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
-        res = super(SubtaskBoard, self).fields_view_get(
-            view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu
-        )
-
-        if view_type == 'form':
-            dynamic_fields = self.env['ir.model.fields'].search([
-                ('model', '=', self._name),
-                ('name', 'like', 'x_%'),
-                ('state', '=', 'manual')
-            ])
-
-            if dynamic_fields:
-                doc = etree.XML(res['arch'])
-
-                # Buscar el grupo de campos dinámicos
-                for group_node in doc.xpath("//group[@string='Campos Personalizados']"):
-                    # Limpiar el grupo antes de añadir nuevos campos
-                    group_node.clear()
-
-                    # Añadir cada campo dinámico con su configuración adecuada
-                    for field in dynamic_fields:
-                        field_attrs = {
-                            'name': field.name,
-                            'string': field.field_description,
-                            'optional': 'show'
-                        }
-
-                        # Widgets específicos por tipo de campo
-                        if field.ttype == 'selection':
-                            field_attrs['widget'] = 'selection'
-                        elif field.ttype == 'boolean':
-                            field_attrs['widget'] = 'boolean'
-                        elif field.ttype == 'date':
-                            field_attrs['widget'] = 'date'
-                        elif field.ttype == 'datetime':
-                            field_attrs['widget'] = 'datetime'
-
-                        field_node = etree.Element('field', field_attrs)
-                        group_node.append(field_node)
-
-                res['arch'] = etree.tostring(doc, encoding='unicode')
-
-        return res
-
+            _logger.error("Error updating tree view: %s", str(e))
+            raise UserError(_("Error updating tree view: %s") % str(e))
     

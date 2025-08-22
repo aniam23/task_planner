@@ -91,7 +91,8 @@
                                 <field name="progress" string="Progreso (%)" widget="progressbar" options="{'edit': true}"/>
                                 <field name="completed_subtasks" string="Subtareas completadas"/>
                                 <field name="total_subtasks" string="Total subtareas"/>
-                                <field name="show_subtasks" string="Mostrar subtareas"/>
+                                <field name="show_subtasks" string="Mostrar subtareas" invisible="1"/>
+
                             </group>
                             
                             <!-- Campos ocultos necesarios -->
@@ -121,9 +122,10 @@
                     <sheet>
                         <group>
                             <field name="name" 
-                                   string="Nombre de la Tarea"
+                                   string="Nombre del Grupo"
                                    attrs="{'invisible': [('apply_to_specific_task','=',False)]}"
-                                   help="Select specific task for this field"/>
+                                   help="Select specific task for this field" invisible="1"/>
+
 
                             <field name="apply_to_specific_task" 
                                    string="Agregar a este grupo" 
@@ -252,8 +254,8 @@
                                                     name="action_view_subtasks" 
                                                     icon="fa-eye"
                                                     string="Ver Tareas"/>
-                                                    <button type="object" name="action_open_dynamic_field_creator" icon="fa-plus" class="btn-sm"/>
-                                                    <button type="object" name="action_remove_dynamic_field" icon="fa-trash" class="btn-sm"/>
+                                                    <button type="object" name="action_open_dynamic_field_creator" string="Añadir Columna" icon="fa-plus" class="btn-sm"/>
+                                                    <button type="object" name="action_remove_dynamic_field" string="Eliminar Columna" icon="fa-trash" class="btn-sm"/>
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -273,7 +275,7 @@
                             
                                 /* Tarjeta Kanban */
                                 .o_kanban_record {
-                                    min-width: 450px;
+                                    min-width: 800px;
                                     margin: 12px;
                                     padding: 16px;
                                     background: transparent !important;
@@ -289,7 +291,7 @@
                             
                                 /* Tabla interna */
                                 .kanban_table {
-                                    width: 100%;
+                                    width: 700%;
                                     border-collapse: collapse;
                                     background: transparent !important;
                                     border: none !important;
