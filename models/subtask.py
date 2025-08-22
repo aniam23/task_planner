@@ -297,6 +297,45 @@ class SubtaskBoard(models.Model):
         """
         self._cr.execute(query)
 
+    def _store_field_metadata(self, field_name):
+        """Store field configuration in JSON"""
+        try:
+            field_data = {
+                'name': field_name,
+                'label': self.dynamic_field_label,
+                'type': self.dynamic_field_type,
+                'created_at': fields.Datetime.now(),
+                'created_by': self.env.user.id,
+            }
+      
+            if self.dynamic_field_type == 'selection' and self.selection_options:
+                field_data['options'] = self.selection_options
+      
+            current_data = {}
+            if self.dynamic_fields_data:
+                try:
+                    current_data = json.loads(self.dynamic_fields_data)
+                except:
+                    current_data = {}
+      
+            current_data[field_name] = field_data
+            self.dynamic_fields_data = json.dumps(current_data)
+      
+        except Exception as e:
+            _logger.error("Metadata storage failed: %s", str(e))
+    def _get_tree_widget_for_field(self):
+        """Get appropriate widget for field type"""
+        widget_map = {
+            'boolean': 'boolean',
+            'selection': 'selection',
+            'date': 'daterange',
+            'datetime': 'datetime',
+            'float': 'float',
+            'integer': 'integer',
+        }
+        widget = widget_map.get(self.dynamic_field_type, '')
+        return f'widget="{widget}"' if widget else ''
+
     def _update_tree_view(self, field_name, field_label):
         """Actualiza la vista tree de subtask.board"""
         try:

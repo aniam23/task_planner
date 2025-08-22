@@ -20,6 +20,7 @@ class SubtaskActivity(models.Model):
     allowed_member_ids = fields.Many2many('hr.employee', string='Responsables', readonly=True)
     task_board_id = fields.Many2one('task.board', string='Grupo', related='subtask_id.task_id', store=True)
     state = fields.Selection(STATES, default="new", string="Estado", tracking=True)
+    
     # Campos para almacenar la información del campo dinámico
     dynamic_field_name = fields.Char(string='Nombre Técnico del Campo')
     dynamic_field_label = fields.Char(string='Etiqueta del Campo')
@@ -162,136 +163,149 @@ class SubtaskActivity(models.Model):
             raise UserError(_("Error al registrar el campo. Consulte los logs."))
 
     def _update_views(self, field_name):
-        """Actualiza las vistas de subtask.activity para incluir el nuevo campo con condición de subtarea"""
+        """Actualiza las vistas de subtask.activity para incluir el nuevo campo"""
         try:
-            field_label = self.field_label or self.field_name
-    
-            # Vista Tree - Buscar la vista tree de subtask.activity
-            tree_view = self.env.ref('task_planner.view_subtask_activity_tree', raise_if_not_found=False)
-    
-            if tree_view:
-                arch_tree = f"""
-                <data>
-                    <xpath expr="//field[@name='person']" position="after">
-                        <field name="{field_name}" string="{field_label}" 
-                               optional="show"
-                               invisible="context.get('default_subtask_id') != {self.subtask_id.id} or not context.get('default_subtask_id')"/>
-                    </xpath>
-                </data>
-                """
-    
-                self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.tree.dynamic.{field_name}.{self.subtask_id.id}',
-                    'model': 'subtask.activity',
-                    'inherit_id': tree_view.id,
-                    'arch': arch_tree,
-                    'type': 'tree',
-                    'priority': 100,
-                })
-                _logger.info("✅ Vista tree actualizada con campo %s para subtarea %s", field_name, self.subtask_id.id)
-    
+            field_label = self.dynamic_field_label or self.dynamic_field_name
+            
             # Vista Form - Buscar la vista form de subtask.activity
             form_view = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
-    
+            
             if form_view:
+                # Crear vista heredada para el formulario
                 arch_form = f"""
                 <data>
                     <xpath expr="//field[@name='person']" position="after">
-                        <field name="subtask_id" invisible="1"/>
-                        <field name="{field_name}" string="{field_label}" 
-                               optional="show"
-                               attrs="{{'invisible': [('subtask_id', '!=', {self.subtask_id.id})]}}"/>
+                        <field name="{field_name}" string="{field_label}"/>
                     </xpath>
                 </data>
                 """
-    
+                
+                # Eliminar vista existente si hay una para este campo
+                existing_view = self.env['ir.ui.view'].search([
+                    ('name', '=', f'subtask.activity.form.dynamic.{field_name}'),
+                    ('model', '=', 'subtask.activity')
+                ])
+                if existing_view:
+                    existing_view.unlink()
+                
+                # Crear nueva vista heredada
                 self.env['ir.ui.view'].create({
-                    'name': f'subtask.activity.form.dynamic.{field_name}.{self.subtask_id.id}',
+                    'name': f'subtask.activity.form.dynamic.{field_name}',
                     'model': 'subtask.activity',
                     'inherit_id': form_view.id,
                     'arch': arch_form,
                     'type': 'form',
                     'priority': 100,
                 })
-                _logger.info("✅ Vista form actualizada con campo %s para subtarea %s", field_name, self.subtask_id.id)
-    
+                _logger.info("✅ Vista form actualizada con campo %s", field_name)
+            
+            # Vista Tree - Buscar la vista tree de subtask.activity
+            tree_view = self.env.ref('task_planner.view_subtask_activity_tree', raise_if_not_found=False)
+            
+            if tree_view:
+                # Crear vista heredada para el árbol
+                arch_tree = f"""
+                <data>
+                    <xpath expr="//field[@name='person']" position="after">
+                        <field name="{field_name}" string="{field_label}"/>
+                    </xpath>
+                </data>
+                """
+                
+                # Eliminar vista existente si hay una para este campo
+                existing_view = self.env['ir.ui.view'].search([
+                    ('name', '=', f'subtask.activity.tree.dynamic.{field_name}'),
+                    ('model', '=', 'subtask.activity')
+                ])
+                if existing_view:
+                    existing_view.unlink()
+                
+                # Crear nueva vista heredada
+                self.env['ir.ui.view'].create({
+                    'name': f'subtask.activity.tree.dynamic.{field_name}',
+                    'model': 'subtask.activity',
+                    'inherit_id': tree_view.id,
+                    'arch': arch_tree,
+                    'type': 'tree',
+                    'priority': 100,
+                })
+                _logger.info("✅ Vista tree actualizada con campo %s", field_name)
+                
         except Exception as e:
             _logger.error("❌ Error actualizando vistas: %s", str(e))
             raise UserError(_("Error al actualizar vistas. Consulte los logs."))
 
     def _reload_model(self):
         """Fuerza la recarga del modelo en el registro"""
-        self.env.registry.clear_cache()
-        self.env['ir.model'].clear_caches()
-        self.env['ir.model.fields'].clear_caches()
-        self.env['ir.ui.view'].clear_caches()
-        self.env.registry.setup_models(self.env.cr)
+        try:
+            # Limpiar todas las cachés
+            self.env.registry.clear_cache()
+            self.env['ir.model'].clear_caches()
+            self.env['ir.model.fields'].clear_caches()
+            self.env['ir.ui.view'].clear_caches()
+            
+            # Recargar el modelo
+            if hasattr(self.env.registry, 'setup_models'):
+                self.env.registry.setup_models(self.env.cr)
+                
+            # Forzar recarga de vistas
+            self.env['ir.ui.view']._validate_cache()
+            
+        except Exception as e:
+            _logger.error("Error en recarga de modelo: %s", str(e))
 
     @api.model
     def fields_view_get(self, view_id=None, view_type='form', toolbar=False, submenu=False):
-        """Override to add dynamic fields to views"""
+        """Override para asegurar que los campos dinámicos aparezcan en las vistas"""
         res = super(SubtaskActivity, self).fields_view_get(
             view_id=view_id, view_type=view_type, toolbar=toolbar, submenu=submenu)
         
-        # Solo procesar para vistas tree y form
-        if view_type in ['tree', 'form']:
-            try:
+        try:
+            # Buscar campos dinámicos
+            dynamic_fields = self.env['ir.model.fields'].search([
+                ('model', '=', 'subtask.activity'),
+                ('name', 'like', 'x_%'),
+                ('state', '=', 'manual')
+            ])
+            
+            if dynamic_fields:
                 doc = etree.XML(res['arch'])
                 
-                # Buscar campos dinámicos
-                dynamic_fields = self.env['ir.model.fields'].search([
-                    ('model', '=', 'subtask.activity'),
-                    ('name', 'like', 'x_%'),
-                    ('state', '=', 'manual')
-                ])
-                
-                if dynamic_fields:
-                    # Para vista tree, agregar después del campo 'person'
-                    if view_type == 'tree':
-                        person_fields = doc.xpath("//field[@name='person']")
-                        if person_fields:
-                            person_field = person_fields[0]
-                            for field in dynamic_fields:
-                                # Verificar si el campo ya existe en la vista
-                                if not doc.xpath(f"//field[@name='{field.name}']"):
-                                    field_elem = etree.Element('field', {
-                                        'name': field.name,
-                                        'string': field.field_description,
-                                        'optional': 'show'
-                                    })
-                                    person_field.addnext(field_elem)
-                    
-                    # Para vista form, agregar en un grupo específico o después de 'person'
-                    elif view_type == 'form':
-                        # Buscar grupo de campos dinámicos o crear uno
-                        dynamic_group = doc.xpath("//group[@name='dynamic_fields']")
-                        if not dynamic_group:
-                            # Buscar campo person para insertar después
-                            person_fields = doc.xpath("//field[@name='person']")
-                            if person_fields:
-                                person_field = person_fields[0]
-                                parent = person_field.getparent()
-                                # Crear grupo para campos dinámicos
-                                group_elem = etree.Element('group', {
-                                    'name': 'dynamic_fields',
-                                    'string': 'Campos Dinámicos'
+                # Para vista form
+                if view_type == 'form':
+                    # Buscar el campo 'person' para insertar después
+                    person_fields = doc.xpath("//field[@name='person']")
+                    if person_fields:
+                        person_field = person_fields[0]
+                        for field in dynamic_fields:
+                            # Verificar si el campo ya existe en la vista
+                            existing_fields = doc.xpath(f"//field[@name='{field.name}']")
+                            if not existing_fields:
+                                field_elem = etree.Element('field', {
+                                    'name': field.name,
+                                    'string': field.field_description,
                                 })
-                                person_field.addnext(group_elem)
-                                dynamic_group = [group_elem]
-                        
-                        if dynamic_group:
-                            group_elem = dynamic_group[0]
-                            for field in dynamic_fields:
-                                if not doc.xpath(f"//field[@name='{field.name}']"):
-                                    field_elem = etree.Element('field', {
-                                        'name': field.name,
-                                        'string': field.field_description
-                                    })
-                                    group_elem.append(field_elem)
+                                person_field.addnext(field_elem)
+                
+                # Para vista tree
+                elif view_type == 'tree':
+                    # Buscar el campo 'person' para insertar después
+                    person_fields = doc.xpath("//field[@name='person']")
+                    if person_fields:
+                        person_field = person_fields[0]
+                        for field in dynamic_fields:
+                            # Verificar si el campo ya existe en la vista
+                            existing_fields = doc.xpath(f"//field[@name='{field.name}']")
+                            if not existing_fields:
+                                field_elem = etree.Element('field', {
+                                    'name': field.name,
+                                    'string': field.field_description,
+                                })
+                                person_field.addnext(field_elem)
                 
                 res['arch'] = etree.tostring(doc, encoding='unicode')
                 
-            except Exception as e:
-                _logger.error("Error procesando vista dinámica: %s", str(e))
+        except Exception as e:
+            _logger.error("Error en fields_view_get: %s", str(e))
         
         return res

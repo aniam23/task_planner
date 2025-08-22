@@ -18,26 +18,27 @@ class DeleteDynamicFieldWizard(models.TransientModel):
     )
 
     def action_delete_dynamic_field(self):
+        self.ensure_one()
         if not self.field_to_delete:
             raise UserError(_("No se ha seleccionado ningún campo para eliminar."))
 
         field_name = self.field_to_delete.name
 
         try:
-            # 1. Primero eliminar todas las vistas que usan este campo
-            self._delete_field_views(field_name)
+            # 1. PRIMERO eliminar TODAS las vistas que hacen referencia a este campo
+            self._delete_all_field_views(field_name)
 
-            # 2. Eliminar la columna de la base de datos
-            self.env.cr.execute(f"ALTER TABLE subtask_activity DROP COLUMN IF EXISTS {field_name}")
-            _logger.info("✅ Columna %s eliminada de la base de datos", field_name)
-
-            # 3. Eliminar el registro de ir.model.fields
+            # 2. Eliminar el registro de ir.model.fields
             field_id = self.field_to_delete.id
             self.field_to_delete.unlink()
             _logger.info("✅ Registro %s eliminado de ir.model.fields", field_id)
 
-            # 4. Limpiar cachés de forma segura
-            self._safe_cache_clear()
+            # 3. Eliminar la columna de la base de datos
+            self.env.cr.execute(f"ALTER TABLE subtask_activity DROP COLUMN IF EXISTS {field_name}")
+            _logger.info("✅ Columna %s eliminada de la base de datos", field_name)
+
+            # 4. Limpiar cachés de forma completa
+            self._complete_cache_clear()
 
             return {
                 'type': 'ir.actions.client',
@@ -48,71 +49,79 @@ class DeleteDynamicFieldWizard(models.TransientModel):
             _logger.error("❌ Error eliminando campo %s: %s", field_name, str(e))
             raise UserError(_("Error al eliminar campo '%s': %s") % (field_name, str(e)))
 
-    def _safe_cache_clear(self):
-        """Limpieza segura de cachés sin recargar modelos"""
+    def _delete_all_field_views(self, field_name):
+        """Elimina TODAS las vistas que hacen referencia a este campo"""
         try:
-            # Métodos alternativos para limpiar cachés
-            if hasattr(self.env.registry, 'clear_caches'):
-                self.env.registry.clear_caches()
-                _logger.info("✅ Cache del registry limpiado con clear_caches()")
-            elif hasattr(self.env, 'clear_caches'):
-                self.env.clear_caches()
-                _logger.info("✅ Cache del environment limpiado")
-            elif hasattr(self.env, 'invalidate_all'):
-                self.env.invalidate_all()
-                _logger.info("✅ Environment invalidado")
+            # Buscar TODAS las vistas que mencionan este campo en su arch XML
+            all_views = self.env['ir.ui.view'].search([
+                ('model', '=', 'subtask.activity')
+            ])
+            
+            views_to_delete = self.env['ir.ui.view']
+            
+            for view in all_views:
+                try:
+                    # Verificar si el campo está mencionado en el archivo XML de la vista
+                    if view.arch_db and field_name in view.arch_db:
+                        views_to_delete |= view
+                        _logger.info("✅ Vista %s contiene el campo %s - Marcada para eliminar", view.name, field_name)
+                except Exception as e:
+                    _logger.warning("⚠️ Error revisando vista %s: %s", view.name, str(e))
+                    continue
+            
+            # También buscar vistas por nombre (patrones que usamos al crearlas)
+            pattern_views = self.env['ir.ui.view'].search([
+                ('model', '=', 'subtask.activity'),
+                ('name', 'ilike', field_name)
+            ])
+            views_to_delete |= pattern_views
+            
+            # Eliminar duplicados
+            views_to_delete = views_to_delete.filtered(lambda v: v.exists())
+            
+            if views_to_delete:
+                view_names = views_to_delete.mapped('name')
+                views_to_delete.unlink()
+                _logger.info("✅ %d vistas eliminadas para el campo %s: %s", 
+                            len(views_to_delete), field_name, view_names)
+            else:
+                _logger.info("ℹ️ No se encontraron vistas para eliminar del campo %s", field_name)
+                
+        except Exception as e:
+            _logger.error("❌ Error crítico al eliminar vistas: %s", str(e))
+            # Si falla la eliminación de vistas, no podemos continuar
+            raise UserError(_("Error al eliminar vistas del campo. Consulte los logs."))
 
-            # Limpiar cachés específicos de campos
-            if hasattr(self.env.registry, '_field_defs'):
-                if 'subtask.activity' in self.env.registry._field_defs:
-                    del self.env.registry._field_defs['subtask.activity']
-                    _logger.info("✅ Definiciones de campos limpiadas")
-
+    def _complete_cache_clear(self):
+        """Limpieza completa de todos los cachés"""
+        try:
+            # Método 1: Limpiar registry cache
+            if hasattr(self.env.registry, '_clear_cache'):
+                self.env.registry._clear_cache()
+            
+            # Método 2: Invalidar todo el environment
+            self.env.invalidate_all()
+            
+            # Método 3: Limpiar cachés de vistas específicamente
+            if hasattr(self.env['ir.ui.view'], 'clear_caches'):
+                self.env['ir.ui.view'].clear_caches()
+            
+            # Método 4: Forzar recarga del modelo
+            if hasattr(self.env.registry, 'setup_models'):
+                self.env.registry.setup_models(self.env.cr, ['subtask.activity'])
+            
+            _logger.info("✅ Cachés limpiados completamente")
+            
         except Exception as e:
             _logger.warning("⚠️ Advertencia al limpiar cachés: %s", str(e))
 
-    def _delete_field_views(self, field_name):
-        """Elimina solo las vistas específicas creadas para este campo dinámico"""
-        try:
-            # Buscar SOLO las vistas que creamos específicamente para este campo
-            # con nuestros patrones de nombres predecibles
-            exact_view_names = [
-                f'subtask.activity.tree.dynamic.{field_name}.%',
-                f'subtask.activity.form.dynamic.{field_name}.%'
-            ]
-            
-            all_views = self.env['ir.ui.view']
-            for pattern in exact_view_names:
-                views = self.env['ir.ui.view'].search([
-                    ('name', '=ilike', pattern),
-                    ('model', '=', 'subtask.activity')
-                ])
-                all_views |= views
-            
-            # También buscar por el ID específico en el nombre de la vista (si lo tenemos)
-            if hasattr(self, 'activity_id') and self.activity_id:
-                activity_pattern = f'%.{self.activity_id.id}'
-                activity_views = self.env['ir.ui.view'].search([
-                    ('name', 'ilike', activity_pattern),
-                    ('name', 'ilike', field_name),
-                    ('model', '=', 'subtask.activity')
-                ])
-                all_views |= activity_views
-            
-            # Filtrar para asegurarnos de que solo eliminamos vistas de este campo específico
-            all_views = all_views.filtered(
-                lambda v: field_name in v.name and 'dynamic' in v.name
-            )
-            
-            view_count = len(all_views)
-            
-            if all_views:
-                view_names = all_views.mapped('name')
-                all_views.unlink()
-                _logger.info("✅ %d vistas eliminadas para el campo %s: %s", 
-                            view_count, field_name, view_names)
-            else:
-                _logger.info("ℹ️ No se encontraron vistas específicas para eliminar del campo %s", field_name)
-                
-        except Exception as e:
-            _logger.warning("⚠️ Error al eliminar vistas del campo %s: %s", field_name, str(e))
+    @api.model
+    def default_get(self, fields_list):
+        """Establece valores por defecto"""
+        result = super().default_get(fields_list)
+        context = self.env.context
+        
+        if 'active_id' in context and context.get('active_model') == 'subtask.activity':
+            result['activity_id'] = context['active_id']
+        
+        return result
