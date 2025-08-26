@@ -9,8 +9,6 @@ _logger = logging.getLogger(__name__)
 class DynamicFieldWizard(models.TransientModel):
     _name = 'dynamic.field.wizard'
     _description = 'Asistente para crear campos dinámicos por grupo exclusivo'
-
-    # Campos del wizard
     dynamic_field_name = fields.Char(string="Nombre Técnico", required=True)
     dynamic_field_label = fields.Char(string="Etiqueta Visible", required=True)
     field_info = fields.Text(string="Valor Inicial")

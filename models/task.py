@@ -1230,6 +1230,7 @@ class TaskBoard(models.Model):
                 'form_view_initial_mode': 'edit',
             },
         }
+    
     def action_view_subtasks(self):
         self.ensure_one()
         return {

@@ -44,7 +44,7 @@ class Boards(models.Model):
     
     def open_task_kanban(self):
         """
-        Abre la vista Kanban para ver únicamente las tareas del tablero actual.
+        Abre la vista de subtareas para ver únicamente las tareas del tablero actual.
         """
         self.ensure_one()
     
@@ -64,17 +64,20 @@ class Boards(models.Model):
             raise UserError("No tienes acceso a este tablero.")
     
         return {
+            'name': 'Tareas',
             'type': 'ir.actions.act_window',
-            'name': f'Tablero: {self.name}',
-            'res_model': 'task.board',
-            'view_mode': 'kanban',
-            'view_id': self.env.ref('task_planner.activity_planner_task_view_kanban').id,
-            'target': 'current',
-            'domain': [('department_id', '=', self.id)],
+            'res_model': 'subtask.board',
+            'view_mode': 'tree,form',
+            'views': [
+                (self.env.ref('task_planner.view_subtask_tree').id, 'tree'),
+                (self.env.ref('task_planner.activity_planner_subtask_form').id, 'form')
+            ],
+            'domain': [('task_id', '=', self.id)],
             'context': {
-                'default_name': 'Nueva Tarea',
-                'default_department_id': self.id,
+                'default_task_id': self.id,
+                'search_default_task_id': self.id
             },
+            'target': 'current',
         }
 
     def open_board_form(self):

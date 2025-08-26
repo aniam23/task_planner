@@ -75,9 +75,51 @@ class SubtaskBoard(models.Model):
         store=False
     )
 
-    # ===========================
-    # COMPUTED METHODS
-    # ===========================
+    department_id = fields.Many2one('hr.department', string='Departamento', compute='_compute_department_id', store=True)
+
+    min_sequence = fields.Integer(
+    compute='_compute_min_sequence',
+    store=False,
+    string="Sequence Mínimo"
+    )
+    sequence = fields.Integer(string="Secuencia", default=1, required=True)
+    
+    sequence_number = fields.Integer(
+    string='Nº Secuencial',
+    readonly=True,
+    copy=False,
+    help='Número secuencial automático para cada registro'
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Buscar si ya existe un registro con sequence_number = 1
+        existing_record = self.search([('sequence_number', '=', 1)], limit=1)
+
+        # Si no existe ningún registro con sequence_number = 1
+        if not existing_record:
+            # Asignar el valor 1 al primer registro de la lista
+            if vals_list:
+                vals_list[0]['sequence_number'] = 1
+
+            # Procesar el resto de registros con numeración secuencial normal
+            if len(vals_list) > 1:
+                max_sequence = self.search([], order='sequence_number desc', limit=1).sequence_number or 0
+                for vals in vals_list[1:]:
+                    max_sequence += 1
+                    vals['sequence_number'] = max_sequence
+        else:
+            # Numeración secuencial normal (cuando ya existe el registro con valor 1)
+            max_sequence = self.search([], order='sequence_number desc', limit=1).sequence_number or 0
+            for vals in vals_list:
+                max_sequence += 1
+                vals['sequence_number'] = max_sequence 
+        return super(SubtaskBoard, self).create(vals_list)
+
+    @api.depends('person')
+    def _compute_department_id(self):
+        for record in self:
+            record.department_id = record.person.department_id.id if record.person else False
 
     def _compute_has_dynamic_fields(self):
         """Actualización optimizada del campo computado"""
@@ -89,16 +131,7 @@ class SubtaskBoard(models.Model):
         for record in self:
             record.has_dynamic_fields = bool(dynamic_count)
 
-    # ELIMINADA: La constraint _check_person_selection que verificaba departamento
-    # @api.constrains('person', 'task_id')
-    # def _check_person_selection(self):
-    #     for subtask in self:
-    #         if (subtask.task_id and subtask.task_id.department_id and 
-    #             subtask.person and subtask.person.id not in subtask.task_id.department_id.member_ids.ids):
-    #             raise ValidationError(
-    #                 ("")
-    #             )
-
+    
     # ===========================
     # ACTION METHODS
     # ===========================
@@ -323,6 +356,7 @@ class SubtaskBoard(models.Model):
       
         except Exception as e:
             _logger.error("Metadata storage failed: %s", str(e))
+
     def _get_tree_widget_for_field(self):
         """Get appropriate widget for field type"""
         widget_map = {
@@ -337,15 +371,21 @@ class SubtaskBoard(models.Model):
         return f'widget="{widget}"' if widget else ''
 
     def _update_tree_view(self, field_name, field_label):
-        """Actualiza la vista tree de subtask.board"""
+        """Actualiza la vista tree y form de subtask.board"""
         try:
-            view = self.env.ref('task_planner.view_subtask_tree', raise_if_not_found=False)
-            if not view:
+            # Obtener las vistas
+            tree_view = self.env.ref('task_planner.view_subtask_tree', raise_if_not_found=False)
+            form_view = self.env.ref('task_planner.activity_planner_subtask_form', raise_if_not_found=False)
+            
+            if not tree_view:
                 raise UserError(_("No se encontró la vista 'task_planner.view_subtask_tree'"))
-
+            if not form_view:
+                raise UserError(_("No se encontró la vista 'task_planner.activity_planner_subtask_form'"))
+    
             widget_info = self._get_tree_widget_for_field() or ""
-
-            arch = f"""
+    
+            # Arch XML para la vista tree
+            tree_arch = f"""
             <data>
                 <xpath expr="//field[@name='files']" position="after">
                     <field name="{field_name}" string="{field_label}" {widget_info}
@@ -354,24 +394,53 @@ class SubtaskBoard(models.Model):
                 </xpath>
             </data>
             """
-
-            existing_view = self.env['ir.ui.view'].search([
+    
+            # Arch XML para la vista form
+            form_arch = f"""
+            <data>
+                <xpath expr="//field[@name='files']" position="after">
+                    <field name="{field_name}" string="{field_label}"
+                           invisible="context.get('default_task_id') != {self.task_id.id} or not context.get('default_task_id')"/>
+                </xpath>
+            </data>
+            """
+    
+            # Eliminar vistas existentes si las hay
+            existing_tree_view = self.env['ir.ui.view'].search([
                 ('name', '=', f'subtask.board.tree.dynamic.{field_name}.{self.task_id.id}'),
                 ('model', '=', 'subtask.board')
             ])
-
-            if existing_view:
-                existing_view.unlink()
-
+            existing_form_view = self.env['ir.ui.view'].search([
+                ('name', '=', f'subtask.board.form.dynamic.{field_name}.{self.task_id.id}'),
+                ('model', '=', 'subtask.board')
+            ])
+    
+            if existing_tree_view:
+                existing_tree_view.unlink()
+            if existing_form_view:
+                existing_form_view.unlink()
+    
+            # Crear vista tree
             self.env['ir.ui.view'].create({
                 'name': f'subtask.board.tree.dynamic.{field_name}.{self.task_id.id}',
                 'model': 'subtask.board',
-                'arch': arch,
-                'inherit_id': view.id,
+                'arch': tree_arch,
+                'inherit_id': tree_view.id,
                 'type': 'tree',
                 'priority': 100,
             })
+    
+            # Crear vista form
+            self.env['ir.ui.view'].create({
+                'name': f'subtask.board.form.dynamic.{field_name}.{self.task_id.id}',
+                'model': 'subtask.board',
+                'arch': form_arch,
+                'inherit_id': form_view.id,
+                'type': 'form',
+                'priority': 100,
+            })
+    
         except Exception as e:
-            _logger.error("Error updating tree view: %s", str(e))
-            raise UserError(_("Error updating tree view: %s") % str(e))
+            _logger.error("Error updating views: %s", str(e))
+            raise UserError(_("Error updating views: %s") % str(e))
     

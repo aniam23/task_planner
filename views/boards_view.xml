@@ -18,8 +18,9 @@
                                     </div>
                                     <div class="oe_kanban_card_footer">  
                                         <button type="object" class="btn btn-primary" name="open_task_kanban" string="Acceso"/>
-                                        <button type="object" class="oe_kanban_button_delete" name="delete_cards" icon="fa-trash" groups="base.group_system"/>
-                                        <button type="object" class="oe_kanban_button_edit" name="open_board_form" icon="fa-pencil" groups="base.group_system"/>
+                                        <button type="object" class="oe_kanban_button_delete" name="delete_cards" string="Eliminar" icon="fa-trash" groups="base.group_system"/>
+                                        <button type="object" class="oe_kanban_button_edit" name="open_board_form" string="Editar" icon="fa-pencil" groups="base.group_system"/>
+
                                     </div>
                                 </div>
                             </div>

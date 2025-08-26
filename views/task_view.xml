@@ -166,39 +166,36 @@
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
                 <tree  string="Tareas"
-                      edit="false"
-                      create="false"
+                      edit="true"
+                      create="true"
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
-                    <field name="sequence" widget="handle" string="Secuencia"/>
+                    <field name="sequence" widget="handle" string="Secuencia" />
+                    <field name="sequence_number" string="id"/>
                     <field name="name" string="Nombre de la tarea" options="{'no_open': True}"/>
                     <field name="task_id" string="Tarea Padre" invisible="1" options="{'no_open': True}"/>
+                    <field name="department_id" string="Departamento" />
                     <field name="person" widget="many2one_avatar_user" string="Responsable" options="{'no_open': True}"/>
                     <field name="state" widget="selection" string="Estado" options="{'no_open': True}"/>
-
-                    <field name="completion_date" widget="daterange" string="Fecha" options="{'no_open': True}"/>
+                    <field name="completion_date" widget="daterange" string="Fecha" />
                     <field name="files" widget="many2many_binary" string="Archivos" options="{'no_open': True}"/>
                     <!-- Botones de acción -->
                     <button name="action_open_activity_tree" type="object" icon="fa-tasks" string="Ver Subtareas" class="oe_no_button"/>
-
-                   
-                    
-                    <button name="action_open_dynamic_field_wizard" 
+                     <button name="action_open_dynamic_field_wizard" 
                            string="Añadir Columna" 
                            type="object" 
-                           class="btn-primary"
-                            icon="fa-plus"/>
+                           class="btn-primary special-button"
+                           icon="fa-plus" 
+                           attrs="{'invisible': [('sequence_number', '!=',1 )]}"/>
                     
-                    <!-- Añade esto en tu vista de subtask.board -->
                     <button name="action_open_delete_field_wizard"
                             string="Eliminar Columna"
                             type="object"
                             class="btn-danger"
-                            icon="fa-trash"
-
-                           />
+                            icon="fa-trash" 
+                           attrs="{'invisible': [('sequence_number', '!=',1 )]}"/>
                 </tree>
             </field>
         </record>

@@ -19,7 +19,7 @@ class SubtaskActivity(models.Model):
     person = fields.Many2one('hr.employee', string='Responsable')
     allowed_member_ids = fields.Many2many('hr.employee', string='Responsables', readonly=True)
     task_board_id = fields.Many2one('task.board', string='Grupo', related='subtask_id.task_id', store=True)
-    state = fields.Selection(STATES, default="new", string="Estado", tracking=True)
+    state = fields.Selection(STATES, default="new", string="Estado")
     
     # Campos para almacenar la información del campo dinámico
     dynamic_field_name = fields.Char(string='Nombre Técnico del Campo')
@@ -36,6 +36,39 @@ class SubtaskActivity(models.Model):
     )
     selection_options = fields.Text(string='Opciones de Selección')
     default_value = fields.Text(string='Valor por Defecto')
+
+    sequence_number_id = fields.Integer(
+    string='Número de secuencia',
+    readonly=True,
+    copy=False,
+    default=0
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Verificar si existe algún registro en la base de datos
+        any_existing_record = self.search_count([])
+
+        # Si no hay ningún registro existente
+        if not any_existing_record:
+            # Asignar el valor 1 al primer registro de la lista
+            if vals_list:
+                vals_list[0]['sequence_number_id'] = 1
+
+            # Procesar el resto de registros con numeración secuencial
+            if len(vals_list) > 1:
+                for i, vals in enumerate(vals_list[1:], start=2):
+                    vals['sequence_number_id'] = i
+        else:
+            # Numeración secuencial normal - buscar el máximo valor existente
+            max_record = self.search([], order='sequence_number_id desc', limit=1)
+            max_sequence = max_record.sequence_number_id if max_record else 0
+
+            for vals in vals_list:
+                max_sequence += 1
+                vals['sequence_number_id'] = max_sequence
+
+        return super(SubtaskActivity, self).create(vals_list)
 
     def action_open_delete_field_wizard(self):
         self.ensure_one()
