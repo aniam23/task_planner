@@ -46,30 +46,27 @@ class SubtaskActivity(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # Verificar si existe algún registro en la base de datos
-        any_existing_record = self.search_count([])
-
-        # Si no hay ningún registro existente
-        if not any_existing_record:
-            # Asignar el valor 1 al primer registro de la lista
+        # Buscar el MÁXIMO sequence_number_id existente (aunque haya huecos)
+        max_record = self.search([], order='sequence_number_id desc', limit=1)
+        max_sequence = max_record.sequence_number_id if max_record else 0
+        
+        # Si no hay registros O el máximo es 0, empezar desde 1
+        if max_sequence == 0:
+            # No hay registros o todos tienen sequence_number_id = 0
             if vals_list:
                 vals_list[0]['sequence_number_id'] = 1
-
-            # Procesar el resto de registros con numeración secuencial
-            if len(vals_list) > 1:
-                for i, vals in enumerate(vals_list[1:], start=2):
-                    vals['sequence_number_id'] = i
+                # Asignar secuencia a los demás registros
+                if len(vals_list) > 1:
+                    for i, vals in enumerate(vals_list[1:], start=2):
+                        vals['sequence_number_id'] = i
         else:
-            # Numeración secuencial normal - buscar el máximo valor existente
-            max_record = self.search([], order='sequence_number_id desc', limit=1)
-            max_sequence = max_record.sequence_number_id if max_record else 0
-
+            # Continuar desde el máximo existente + 1
             for vals in vals_list:
                 max_sequence += 1
                 vals['sequence_number_id'] = max_sequence
-
+    
         return super(SubtaskActivity, self).create(vals_list)
-
+    
     def action_open_delete_field_wizard(self):
         self.ensure_one()
         return {

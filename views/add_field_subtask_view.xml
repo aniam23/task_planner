@@ -9,16 +9,12 @@
                 <form string="Agregar Campo Dinámico">
                     <sheet>
                         <group>
-                            <group string="Información de Subtarea" col="4">
-                                
-                                <field name="subtask_name" readonly="1" class="oe_inline"/>
-                            </group>
+                            <field name="subtask_name" readonly="1" class="oe_inline"/>
                             
-                            <group string="Configuración del Campo" col="4">
-                                <field name="field_label" required="1" placeholder="Ej: Prioridad"/>
-                                <field name="field_name" required="1" placeholder="Ej: mi_campo"/>
-                                <field name="field_type" required="1"/>
-                            </group>
+                                <field name="field_label" string="etiqueta visible" required="1"  placeholder="etiqueta visible"/>
+                                <field name="field_name"  string="nombre del campo" required="1"  placeholder="nombre"/>
+                                <field name="field_type"  string="tipo" required="1" placeholder="tipo de campo"/>
+                            
                             
                             <group string="Opciones Específicas" attrs="{'invisible': [('field_type', '!=', 'selection')]}" col="4">
                               

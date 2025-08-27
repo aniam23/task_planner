@@ -12,7 +12,7 @@
                       decoration-success="state == 'done'">
                 <field name="allowed_member_ids" invisible="1"/>
                 <field name="name"/>
-                <field name= "sequence_number_id" invisible="1"/>
+                <field name= "sequence_number_id" invisible="1" />
                 <field name="date_deadline"/>
                  <field name="state"/>
                 <field name="done" invisible="1"/>

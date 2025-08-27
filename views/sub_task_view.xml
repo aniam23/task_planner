@@ -22,17 +22,7 @@
                         </group>
                     </group>
                     
-                    <!-- Separador y árbol que ocupa todo el ancho -->
-                    <separator string="Actividades" colspan="4"/>
-                    <field name="activity_line_ids" colspan="4" nolabel="1">
-                        <tree editable="bottom" style="height: 300px;">
-                            <field name="name" string="Nombre" colspan="2"/>
-                            <field name="person" string="Responsable" domain="[('id', 'in', parent.allowed_member_ids)]" colspan="2"/>
-                            <field name="date_deadline" string="Fecha Límite" colspan="2"/>
-                            <field name="done" string="Completado" colspan="2" invisible="1"/>
-
-                        </tree>
-                    </field>
+                   
                     
                     <field name="allowed_member_ids" invisible="1"/>
                 </sheet>
@@ -40,11 +30,11 @@
         </field>
     </record>
 
-    <record id="seq_subtask_board" model="ir.sequence">
+     <record id="seq_subtask_board" model="ir.sequence">
             <field name="name">Subtask Board Sequence</field>
             <field name="code">subtask.board.sequence</field>
             <field name="prefix"></field>
-            <field name="padding">0</field> <!-- Sin padding, solo el número -->
+            <field name="padding">0</field> 
             <field name="number_next">1</field>
             <field name="number_increment">1</field>
             <field name="company_id" eval="False"/>

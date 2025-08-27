@@ -173,7 +173,7 @@
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia" />
-                    <field name="sequence_number" string="id"/>
+                    <field name="sequence_number" string="id" invisible="1" />
                     <field name="name" string="Nombre de la tarea" options="{'no_open': True}"/>
                     <field name="task_id" string="Tarea Padre" invisible="1" options="{'no_open': True}"/>
                     <field name="department_id" string="Departamento" />
