@@ -19,14 +19,11 @@ class DynamicFieldWizard(models.TransientModel):
         ('date', 'Fecha'),
         ('datetime', 'Fecha/Hora'),
         ('boolean', 'Booleano'),
-        ('selection', 'Selección')],
+        ],
         string="Tipo de Campo",
         required=True
     )
-    selection_options = fields.Text(
-        string="Opciones de Selección",
-        help="Formato: clave:valor\nuno por línea"
-    )
+  
 
     subtask_id = fields.Many2one(
         'subtask.board',
@@ -70,9 +67,8 @@ class DynamicFieldWizard(models.TransientModel):
         'dynamic_field_name': self.dynamic_field_name,
         'dynamic_field_label': self.dynamic_field_label,
         'dynamic_field_type': self.dynamic_field_type,
-        'selection_options': self.selection_options,
         'field_info': self.field_info  # Añade esta línea para guardar la información
-    })
+        })
     
     # Llama al método en la subtarea
         return self.subtask_id.action_create_dynamic_field()

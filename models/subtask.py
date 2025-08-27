@@ -48,12 +48,8 @@ class SubtaskBoard(models.Model):
         ('boolean', 'Boolean'),
         ('date', 'Date'),
         ('datetime', 'Datetime'),
-        ('selection', 'Selection')],
+        ],
         string="Field Type"
-    )
-    selection_options = fields.Text(
-        string="Selection Options",
-        help="Format: key:value\none per line"
     )
     
     dynamic_fields_data = fields.Text(
@@ -248,22 +244,13 @@ class SubtaskBoard(models.Model):
                 field_name,
                 field_label,
                 self.dynamic_field_type,
-                self.selection_options
+                
             )
     
             # 2. Actualizar TODAS las subtareas existentes
             all_subtasks = self.env['subtask.board'].search([])
             
-            if self.field_info:
-                if self.dynamic_field_type == 'selection' and self.selection_options:
-                    options = [line.split(':')[0].strip() 
-                             for line in self.selection_options.split('\n') 
-                             if line.strip()]
-                    if options:
-                        all_subtasks.write({field_name: options[0]})
-                else:
-                    all_subtasks.write({field_name: self.field_info})
-    
+           
             # 3. Actualizar la vista
             self._update_tree_view(field_name, field_label)
             self._store_field_metadata(field_name)
@@ -281,7 +268,7 @@ class SubtaskBoard(models.Model):
             clean_name = f'x_{clean_name}'
         return clean_name
 
-    def _create_field_in_model(self, field_name, field_label, field_type, selection_options=None):
+    def _create_field_in_model(self, field_name, field_label, field_type):
         """Create technical field definition"""
         model = self.env['ir.model'].sudo().search([('model', '=', self._name)])
         if not model:
@@ -297,14 +284,7 @@ class SubtaskBoard(models.Model):
             'required': False,
         }
 
-        if field_type == 'selection' and selection_options:
-            selection = []
-            for line in selection_options.split('\n'):
-                if line.strip() and ':' in line:
-                    key, val = map(str.strip, line.split(':', 1))
-                    selection.append((key, val))
-            if selection:
-                field_vals['selection'] = str(selection)
+       
 
         self.env['ir.model.fields'].sudo().create(field_vals)
         self._add_column_to_table(field_name, field_type)
@@ -341,8 +321,6 @@ class SubtaskBoard(models.Model):
                 'created_by': self.env.user.id,
             }
       
-            if self.dynamic_field_type == 'selection' and self.selection_options:
-                field_data['options'] = self.selection_options
       
             current_data = {}
             if self.dynamic_fields_data:

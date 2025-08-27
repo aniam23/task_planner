@@ -88,11 +88,9 @@ class TaskBoard(models.Model):
         ('integer', 'Integer'),
         ('float', 'Float'),
         ('boolean', 'Boolean'),
-        ('selection', 'Selection'),
         ('date', 'Date'),
         ('datetime', 'Datetime')
     ], string='Field Type', default='char')
-    selection_options = fields.Text(string='Selection Options')
     dynamic_fields_data = fields.Text(string='Dynamic Fields Data')
     dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
 

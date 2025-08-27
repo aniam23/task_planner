@@ -20,7 +20,7 @@ class AddFieldSubtaskWizard(models.TransientModel):
         ('date', 'Fecha'),
         ('datetime', 'Fecha/Hora'),
         ('boolean', 'Booleano'),
-        ('selection', 'Selección')],
+        ],
         string="Tipo de Campo",
         required=True,
         default='char'
@@ -239,6 +239,32 @@ class AddFieldSubtaskWizard(models.TransientModel):
         try:
             field_label = self.field_label or self.field_name
 
+            planner_form_view = self.env.ref('task_planner.activity_planner_subtask_form')
+            if planner_form_view:
+                # XPath CORREGIDO - apuntar al árbol dentro del campo one2many
+                arch_planner_form = f"""
+                    <data>
+                        <xpath expr="//field[@name='activity_line_ids']/tree/field[@name='person']" position="after">
+                            <field name="{field_name}" string="{field_label}"/>
+                        </xpath>
+                    </data>
+                    """
+                existing_planner_view = self.env['ir.ui.view'].search([
+                    ('name', '=', f'subtask.planner.form.dynamic.{field_name}'),
+                    ('model', '=', 'subtask.board')  # Modelo CORRECTO
+                ])
+                if existing_planner_view:
+                    existing_planner_view.unlink()
+
+                self.env['ir.ui.view'].create({
+                    'name': f'subtask.planner.form.dynamic.{field_name}',
+                    'model': 'subtask.board',  # Modelo CORRECTO
+                    'inherit_id': planner_form_view.id,
+                    'arch': arch_planner_form,
+                    'type': 'form',
+                    'priority': 100,
+                })
+                _logger.info("✅ Vista planner form (árbol) actualizada con campo %s", field_name)
             # Vista Form
             form_view = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
             if form_view:

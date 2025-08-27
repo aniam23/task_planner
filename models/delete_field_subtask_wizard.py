@@ -1,11 +1,12 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import logging
+import re
 
 _logger = logging.getLogger(__name__)
 
 class DeleteDynamicFieldWizard(models.TransientModel):
-    _name = 'delete.field.subtask.wizard' 
+    _name = 'delete.field.subtask.wizard'
     _description = 'Wizard para eliminar campos dinámicos'
 
     activity_id = fields.Many2one('subtask.activity', string="Actividad", required=True)
@@ -17,6 +18,23 @@ class DeleteDynamicFieldWizard(models.TransientModel):
         domain="[('model','=','subtask.activity'),('state','=','manual'),('name','like','x_%')]"
     )
 
+    def clean_specific_view_references(self, field_name):
+        """Limpia referencias específicas en la vista subtask.planner.form"""
+        try:
+            # Buscar la vista específica
+            specific_view = self.env['ir.ui.view'].search([
+                ('name', '=', 'subtask.planner.form'),
+                ('model', '=', 'subtask.board')
+            ], limit=1)
+            
+            if specific_view:
+                self._clean_field_from_view(specific_view, field_name)
+                _logger.info("✅ Vista subtask.planner.form limpiada para el campo %s", field_name)
+            else:
+                _logger.warning("⚠️ Vista subtask.planner.form no encontrada")
+                
+        except Exception as e:
+            _logger.error("❌ Error limpiando vista específica: %s", str(e))
     def action_delete_dynamic_field(self):
         self.ensure_one()
         if not self.field_to_delete:
@@ -25,8 +43,8 @@ class DeleteDynamicFieldWizard(models.TransientModel):
         field_name = self.field_to_delete.name
 
         try:
-            # 1. PRIMERO eliminar TODAS las vistas que hacen referencia a este campo
-            self._delete_all_field_views(field_name)
+            # 1. PRIMERO eliminar TODAS las referencias en vistas
+            self._delete_all_field_references(field_name)
 
             # 2. Eliminar el registro de ir.model.fields
             field_id = self.field_to_delete.id
@@ -49,69 +67,74 @@ class DeleteDynamicFieldWizard(models.TransientModel):
             _logger.error("❌ Error eliminando campo %s: %s", field_name, str(e))
             raise UserError(_("Error al eliminar campo '%s': %s") % (field_name, str(e)))
 
-    def _delete_all_field_views(self, field_name):
-        """Elimina TODAS las vistas que hacen referencia a este campo"""
+    def _delete_all_field_references(self, field_name):
+        """Elimina TODAS las referencias a campos en vistas"""
         try:
-            # Buscar TODAS las vistas que mencionan este campo en su arch XML
-            all_views = self.env['ir.ui.view'].search([
-                ('model', '=', 'subtask.activity')
-            ])
-            
-            views_to_delete = self.env['ir.ui.view']
+            # Buscar en TODOS los modelos, no solo en subtask.activity
+            all_views = self.env['ir.ui.view'].search([])
+            views_to_clean = self.env['ir.ui.view']
             
             for view in all_views:
                 try:
-                    # Verificar si el campo está mencionado en el archivo XML de la vista
-                    if view.arch_db and field_name in view.arch_db:
-                        views_to_delete |= view
-                        _logger.info("✅ Vista %s contiene el campo %s - Marcada para eliminar", view.name, field_name)
+                    arch = view.arch_db or ''
+                    if field_name in arch:
+                        views_to_clean |= view
+                        _logger.info("✅ Vista %s contiene el campo %s - Marcada para limpiar", view.name, field_name)
                 except Exception as e:
                     _logger.warning("⚠️ Error revisando vista %s: %s", view.name, str(e))
                     continue
             
-            # También buscar vistas por nombre (patrones que usamos al crearlas)
-            pattern_views = self.env['ir.ui.view'].search([
-                ('model', '=', 'subtask.activity'),
-                ('name', 'ilike', field_name)
-            ])
-            views_to_delete |= pattern_views
-            
-            # Eliminar duplicados
-            views_to_delete = views_to_delete.filtered(lambda v: v.exists())
-            
-            if views_to_delete:
-                view_names = views_to_delete.mapped('name')
-                views_to_delete.unlink()
-                _logger.info("✅ %d vistas eliminadas para el campo %s: %s", 
-                            len(views_to_delete), field_name, view_names)
-            else:
-                _logger.info("ℹ️ No se encontraron vistas para eliminar del campo %s", field_name)
+            # Limpiar referencias en las vistas encontradas
+            for view in views_to_clean:
+                self._clean_field_from_view(view, field_name)
                 
         except Exception as e:
-            _logger.error("❌ Error crítico al eliminar vistas: %s", str(e))
-            # Si falla la eliminación de vistas, no podemos continuar
-            raise UserError(_("Error al eliminar vistas del campo. Consulte los logs."))
+            _logger.error("❌ Error crítico al limpiar referencias: %s", str(e))
+            raise UserError(_("Error al limpiar referencias del campo. Consulte los logs."))
+
+    def _clean_field_from_view(self, view, field_name):
+        """Elimina referencias a un campo específico de una vista"""
+        try:
+            arch = view.arch_db or ''
+            
+            # Patrones para buscar referencias al campo
+            patterns = [
+                f'name="{field_name}"',
+                f'name=\'{field_name}\'',
+                f'"{field_name}"',
+                f"'{field_name}'"
+            ]
+            
+            cleaned_arch = arch
+            for pattern in patterns:
+                # Eliminar campos completos que referencien al campo
+                cleaned_arch = re.sub(
+                    rf'<field[^>]*{pattern}[^>]*/>', 
+                    '', 
+                    cleaned_arch
+                )
+                
+                # Eliminar atributos que contengan referencias al campo
+                cleaned_arch = re.sub(
+                    rf'(\s+[a-zA-Z_]+=["\'][^"\']*{pattern}[^"\']*["\'])', 
+                    '', 
+                    cleaned_arch
+                )
+            
+            # Actualizar la vista solo si hubo cambios
+            if cleaned_arch != arch:
+                view.write({'arch_db': cleaned_arch})
+                _logger.info("✅ Vista %s limpiada de referencias a %s", view.name, field_name)
+                
+        except Exception as e:
+            _logger.error("❌ Error limpiando vista %s: %s", view.name, str(e))
 
     def _complete_cache_clear(self):
         """Limpieza completa de todos los cachés"""
         try:
-            # Método 1: Limpiar registry cache
-            if hasattr(self.env.registry, '_clear_cache'):
-                self.env.registry._clear_cache()
-            
-            # Método 2: Invalidar todo el environment
+            self.env.registry.clear_cache()
             self.env.invalidate_all()
-            
-            # Método 3: Limpiar cachés de vistas específicamente
-            if hasattr(self.env['ir.ui.view'], 'clear_caches'):
-                self.env['ir.ui.view'].clear_caches()
-            
-            # Método 4: Forzar recarga del modelo
-            if hasattr(self.env.registry, 'setup_models'):
-                self.env.registry.setup_models(self.env.cr, ['subtask.activity'])
-            
             _logger.info("✅ Cachés limpiados completamente")
-            
         except Exception as e:
             _logger.warning("⚠️ Advertencia al limpiar cachés: %s", str(e))
 

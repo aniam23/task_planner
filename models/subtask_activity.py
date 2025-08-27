@@ -31,10 +31,10 @@ class SubtaskActivity(models.Model):
         ('date', 'Fecha'),
         ('datetime', 'Fecha/Hora'),
         ('boolean', 'Booleano'),
-        ('selection', 'Selección')],
+      ],
         string='Tipo de Campo'
     )
-    selection_options = fields.Text(string='Opciones de Selección')
+   
     default_value = fields.Text(string='Valor por Defecto')
 
     sequence_number_id = fields.Integer(
@@ -193,47 +193,68 @@ class SubtaskActivity(models.Model):
             raise UserError(_("Error al registrar el campo. Consulte los logs."))
 
     def _update_views(self, field_name):
-        """Actualiza las vistas de subtask.activity para incluir el nuevo campo"""
+        """Actualiza las vistas de subtask.activity y subtask.board para incluir el nuevo campo"""
         try:
             field_label = self.dynamic_field_label or self.dynamic_field_name
-            
-            # Vista Form - Buscar la vista form de subtask.activity
-            form_view = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
-            
-            if form_view:
-                # Crear vista heredada para el formulario
-                arch_form = f"""
+
+            # 1. Vista Form principal - activity_planner_subtask_form (para el árbol de líneas de actividad)
+            planner_form_view = self.env.ref('task_planner.activity_planner_subtask_form')
+            if planner_form_view:
+                # XPath CORREGIDO - apuntar al árbol dentro del campo one2many
+                arch_planner_form = f"""
+                    <data>
+                        <xpath expr="//field[@name='activity_line_ids']/tree/field[@name='person']" position="after">
+                            <field name="{field_name}" string="{field_label}"/>
+                        </xpath>
+                    </data>
+                    """
+                existing_planner_view = self.env['ir.ui.view'].search([
+                    ('name', '=', f'subtask.planner.form.dynamic.{field_name}'),
+                    ('model', '=', 'subtask.board')  # Modelo CORRECTO
+                ])
+                if existing_planner_view:
+                    existing_planner_view.unlink()
+
+                self.env['ir.ui.view'].create({
+                    'name': f'subtask.planner.form.dynamic.{field_name}',
+                    'model': 'subtask.board',  # Modelo CORRECTO
+                    'inherit_id': planner_form_view.id,
+                    'arch': arch_planner_form,
+                    'type': 'form',
+                    'priority': 100,
+                })
+                _logger.info("✅ Vista planner form (árbol) actualizada con campo %s", field_name)
+    
+           
+            form_view_2 = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
+            if form_view_2:
+                arch_form_2 = f"""
                 <data>
                     <xpath expr="//field[@name='person']" position="after">
                         <field name="{field_name}" string="{field_label}"/>
                     </xpath>
                 </data>
                 """
-                
-                # Eliminar vista existente si hay una para este campo
-                existing_view = self.env['ir.ui.view'].search([
+                existing_view_2 = self.env['ir.ui.view'].search([
                     ('name', '=', f'subtask.activity.form.dynamic.{field_name}'),
                     ('model', '=', 'subtask.activity')
                 ])
-                if existing_view:
-                    existing_view.unlink()
-                
-                # Crear nueva vista heredada
+                if existing_view_2:
+                    existing_view_2.unlink()
+    
                 self.env['ir.ui.view'].create({
                     'name': f'subtask.activity.form.dynamic.{field_name}',
                     'model': 'subtask.activity',
-                    'inherit_id': form_view.id,
-                    'arch': arch_form,
+                    'inherit_id': form_view_2.id,
+                    'arch': arch_form_2,
                     'type': 'form',
                     'priority': 100,
                 })
-                _logger.info("✅ Vista form actualizada con campo %s", field_name)
-            
-            # Vista Tree - Buscar la vista tree de subtask.activity
+                _logger.info("✅ Vista form de subtask.activity actualizada con campo %s", field_name)
+    
+            # 3. Vista Tree - view_subtask_activity_tree (para el modelo subtask.activity)
             tree_view = self.env.ref('task_planner.view_subtask_activity_tree', raise_if_not_found=False)
-            
             if tree_view:
-                # Crear vista heredada para el árbol
                 arch_tree = f"""
                 <data>
                     <xpath expr="//field[@name='person']" position="after">
@@ -241,16 +262,13 @@ class SubtaskActivity(models.Model):
                     </xpath>
                 </data>
                 """
-                
-                # Eliminar vista existente si hay una para este campo
                 existing_view = self.env['ir.ui.view'].search([
                     ('name', '=', f'subtask.activity.tree.dynamic.{field_name}'),
                     ('model', '=', 'subtask.activity')
                 ])
                 if existing_view:
                     existing_view.unlink()
-                
-                # Crear nueva vista heredada
+    
                 self.env['ir.ui.view'].create({
                     'name': f'subtask.activity.tree.dynamic.{field_name}',
                     'model': 'subtask.activity',
@@ -259,12 +277,31 @@ class SubtaskActivity(models.Model):
                     'type': 'tree',
                     'priority': 100,
                 })
-                _logger.info("✅ Vista tree actualizada con campo %s", field_name)
-                
+                _logger.info("✅ Vista tree de subtask.activity actualizada con campo %s", field_name)
+    
         except Exception as e:
             _logger.error("❌ Error actualizando vistas: %s", str(e))
             raise UserError(_("Error al actualizar vistas. Consulte los logs."))
 
+    def _force_view_reload(self):
+        """Fuerza la recarga de vistas limpiando cachés específicos"""
+        try:
+            # Limpiar cachés críticos
+            self.env.registry.clear_cache()
+            self.env['ir.ui.view'].clear_caches()
+
+            # Recargar el modelo en el registro
+            if hasattr(self.env.registry, 'setup_models'):
+                self.env.registry.setup_models(self.env.cr)
+
+            # Forzar recarga de vistas
+            self.env['ir.ui.view'].invalidate_model(['arch_db'])
+
+            _logger.info("✅ Vistas recargadas forzadamente")
+
+        except Exception as e:
+            _logger.error("❌ Error en recarga forzada de vistas: %s", str(e))
+            
     def _reload_model(self):
         """Fuerza la recarga del modelo en el registro"""
         try:
