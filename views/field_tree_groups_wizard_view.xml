@@ -1,27 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_add_field_subtask_wizard_form" model="ir.ui.view">
-        <field name="name">add.field.subtask.wizard.form</field>
-        <field name="model">add.field.subtask.wizard</field>
+    <record id="view_dynamic_field_wizard_form" model="ir.ui.view">
+        <field name="name">field.tree.groups.wizard.form</field>
+        <field name="model">field.tree.groups.wizard</field>
         <field name="arch" type="xml">
-            <form string="Nueva Columna">
+            <form string="Crear Campo Dinámico">
                 <sheet>
                     <group>
                         <group string="Configuración del Campo">
-                            <field name="field_name"/>
-                            <field name="field_label"/>
-                            <field name="field_type"/>
+                            <field name="dynamic_field_name"/>
+                            <field name="dynamic_field_label"/>
+                            <field name="dynamic_field_type"/>
                             <field name="selection_option_count"/>
-                            <field name="default_value"/>
+                            <field name="field_info"/>
                         </group>
-                        <group string="Contexto" invisible="1">
-                            <field name="subtask_id" readonly="1"/>
-                            <field name="subtask_name" readonly="1"/>
+                        <group string="Contexto">
+                            <field name="board_id" />
+                            
                         </group>
                     </group>
 
                     <!-- Sección para opciones de selección -->
-                    <group string="Opciones de Selección" attrs="{'invisible': [('field_type', '!=', 'selection')]}">
+                    <group string="Opciones de Selección" attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}">
+                        <label for="selection_option_1" string="Ingrese las opciones de selección:"/>
+
                         <group attrs="{'invisible': [('selection_option_count', '&lt;', 1)]}">
                             <field name="selection_option_1"/>
                         </group>
@@ -52,41 +54,12 @@
                         <group attrs="{'invisible': [('selection_option_count', '&lt;', 10)]}">
                             <field name="selection_option_10"/>
                         </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 11)]}">
-                            <field name="selection_option_1"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 12)]}">
-                            <field name="selection_option_2"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 13)]}">
-                            <field name="selection_option_3"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 14)]}">
-                            <field name="selection_option_4"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 15)]}">
-                            <field name="selection_option_5"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 16)]}">
-                            <field name="selection_option_6"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 17)]}">
-                            <field name="selection_option_7"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 18)]}">
-                            <field name="selection_option_8"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 19)]}">
-                            <field name="selection_option_9"/>
-                        </group>
-                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 20)]}">
-                            <field name="selection_option_10"/>
-                        </group>
+
                         <button name="action_add_selection_option" 
                                 string="Agregar Otra Opción" 
                                 type="object" 
                                 class="btn-secondary"
-                                attrs="{'invisible': [('selection_option_count', '&gt;=', 20)]}"/>
+                                attrs="{'invisible': [('selection_option_count', '&gt;=', 10)]}"/>
                     </group>
                 </sheet>
                 <footer>

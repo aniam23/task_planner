@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_delete_board_file_wizard_form" model="ir.ui.view">
+        <field name="name">delete.board.file.wizard.form</field>
+        <field name="model">delete.board.file.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Eliminar Campo Dinámico de Actividad">
+                <sheet>
+                    <group>
+                        <group string="Selección de Campo">
+                          
+                            <field name="field_to_delete" 
+                                   string="Campo a eliminar"
+                                   required="1"
+                                   options="{'no_open': true, 'no_create': true}"
+                                   domain="[('model','=','subtask.activity'),('state','=','manual'),('name','like','x_%')]"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_delete_dynamic_field" 
+                            string="Eliminar Campo Seleccionado" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button string="Cancelar" 
+                            class="btn-default" 
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_open_delete_dynamic_field_activity_wizard" model="ir.actions.act_window">
+        <field name="name">Eliminar Campo Dinámico de Actividad</field>
+        <field name="res_model">delete.dynamic.field.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

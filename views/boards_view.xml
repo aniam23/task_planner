@@ -15,6 +15,7 @@
                                     </div>
                                     <div class="oe_kanban_card_body">
                                         <field name="member_ids" widget="many2many_tags_avatar" options=""/>
+                                       
                                     </div>
                                     <div class="oe_kanban_card_footer">  
                                         <button type="object" class="btn btn-primary" name="open_task_kanban" string="Acceso"/>

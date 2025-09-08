@@ -9,6 +9,7 @@
                     <group>
                         <group>
                             <field name="name"/>
+                            
                             <field name="sequence_number" string="id"/>
                             <field name="task_id" invisible="1"/>
                             <field name="allowed_member_ids" invisible="1"/>
@@ -45,7 +46,7 @@
             <field name="name">Subtask Board Sequence</field>
             <field name="code">subtask.board.sequence</field>
             <field name="prefix"></field>
-            <field name="padding">0</field> <!-- Sin padding, solo el número -->
+            <field name="padding">0</field> 
             <field name="number_next">1</field>
             <field name="number_increment">1</field>
             <field name="company_id" eval="False"/>

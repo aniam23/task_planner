@@ -28,9 +28,11 @@
     'views/sub_task_view.xml',
     'views/menu.xml',
     'views/subtask_activity_view.xml',
-    'views/add_field_subtask_view.xml'
+    'views/add_field_subtask_view.xml',
+    'views/field_tree_groups_wizard_view.xml',
+    'views/delete_board_file_wizard_view.xml'
     ],
-    
+    'images': ['static/description/icon.png'],
     'installable': True,
     'application': True,
     'license': 'GPL-3',

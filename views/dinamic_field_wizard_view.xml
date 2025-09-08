@@ -7,25 +7,66 @@
             <form string="Crear Campo Dinámico">
                 <sheet>
                     <group>
-                    <field name="task_board_id" string="Grupo Destino" readonly="1"/>
-                    <field name="dynamic_field_name" string="Nombre Técnico" required="1"/>
-                    <field name="dynamic_field_label" string="Etiqueta Visible" required="1"/>
-                    <field name="dynamic_field_type" string="Tipo de Campo" required="1"/>
-                    <field name="field_info" string="Valor Inicial"/>
-                </group>
+                        <group string="Configuración del Campo">
+                            <field name="dynamic_field_name"/>
+                            <field name="dynamic_field_label"/>
+                            <field name="dynamic_field_type"/>
+                            <field name="selection_option_count"/>
+                            <field name="field_info"/>
+                        </group>
+                        <group string="Contexto">
+                            <field name="subtask_id" readonly="1"/>
+                            <field name="task_board_id" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Sección para opciones de selección -->
+                    <group string="Opciones de Selección" attrs="{'invisible': [('dynamic_field_type', '!=', 'selection')]}">
+                        <label for="selection_option_1" string="Ingrese las opciones de selección:"/>
+
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 1)]}">
+                            <field name="selection_option_1"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 2)]}">
+                            <field name="selection_option_2"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 3)]}">
+                            <field name="selection_option_3"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 4)]}">
+                            <field name="selection_option_4"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 5)]}">
+                            <field name="selection_option_5"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 6)]}">
+                            <field name="selection_option_6"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 7)]}">
+                            <field name="selection_option_7"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 8)]}">
+                            <field name="selection_option_8"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 9)]}">
+                            <field name="selection_option_9"/>
+                        </group>
+                        <group attrs="{'invisible': [('selection_option_count', '&lt;', 10)]}">
+                            <field name="selection_option_10"/>
+                        </group>
+
+                        <button name="action_add_selection_option" 
+                                string="Agregar Otra Opción" 
+                                type="object" 
+                                class="btn-secondary"
+                                attrs="{'invisible': [('selection_option_count', '&gt;=', 10)]}"/>
+                    </group>
                 </sheet>
                 <footer>
-                    <button name="action_create_dynamic_field" string="Crear" type="object" class="btn-primary"/>
+                    <button name="action_create_dynamic_field" string="Crear Campo" type="object" class="btn-primary"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
         </field>
-    </record>
-
-    <record id="action_dynamic_field_wizard" model="ir.actions.act_window">
-        <field name="name">Crear Campo Dinámico</field>
-        <field name="res_model">dynamic.field.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
     </record>
 </odoo>

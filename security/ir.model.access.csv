@@ -4,6 +4,8 @@ access_task_board,task_board,model_task_board,base.group_user,1,1,1,1
 access_subtask_board,subtask.board,model_subtask_board,base.group_user,1,1,1,1
 access_subtask_activity,subtask.activity,model_subtask_activity,base.group_user,1,1,1,1
 access_dynamic_field_wizard,dynamic.field.wizard,model_dynamic_field_wizard,base.group_user,1,1,1,1
-access_delete.field.subtask.wizard,delete.field.subtask.wizard,model_delete_field_subtask_wizard,base.group_user,1,1,1,1
+access_delete_field_subtask_wizard,delete.field.subtask.wizard,model_delete_field_subtask_wizard,base.group_user,1,1,1,1
 access_add_field_subtask_wizard,add.field.subtask.wizard,model_add_field_subtask_wizard,base.group_user,1,1,1,1
 access_delete_dynamic_field_wizard,delete.dynamic.field.wizard,model_delete_dynamic_field_wizard,base.group_user,1,1,1,1
+access_field_tree_groups_wizard,field.tree.groups.wizard,model_field_tree_groups_wizard,base.group_user,1,1,1,1
+access_delete_board_file_wizard,delete.board.file.wizard,model_delete_board_file_wizard,base.group_user,1,1,1,1

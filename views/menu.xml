@@ -2,7 +2,7 @@
         <odoo>
             <data>
                 <!-- Menú principal -->
-                <menuitem id="task_planner.menu_root" name="Plannifier" sequence="10"/>
+                <menuitem id="task_planner.menu_root" name="Plannifier" sequence="10" web_icon="task_planner,static/description/icon.png"/>
                 
                 <!-- Submenú Boards -->
                 <menuitem id="task_planner.activity_menu_board_action" 

@@ -1,9 +1,10 @@
-from odoo import models, fields, api, tools
-from odoo.exceptions import ValidationError, UserError
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError, ValidationError
 import logging
 import re
+import json
+from datetime import datetime
 from .boards import STATES
-from lxml import etree
 
 _logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class SubtaskActivity(models.Model):
     _description = 'Actividad Interna de Subtarea'
     _inherit = ['mail.activity.mixin']
     
-    name = fields.Char(string='Subtarea', required=True)
+    name = fields.Char(string='Nombre de la Subtarea', required=True)
     date_deadline = fields.Date(string='Fecha')
     done = fields.Boolean(string='Completado')
     subtask_id = fields.Many2one('subtask.board', string='Subtarea', ondelete='cascade', required=True)
@@ -31,28 +32,70 @@ class SubtaskActivity(models.Model):
         ('date', 'Fecha'),
         ('datetime', 'Fecha/Hora'),
         ('boolean', 'Booleano'),
-      ],
-        string='Tipo de Campo'
+        ('selection', 'Selección')  # Añadido el tipo selección
+        ],
+        string="Tipo de Campo",
+        required=True,
+        default='char' 
     )
+    
+    selection_option_count = fields.Integer(
+        string="Número de Opciones",
+        default=1,
+        compute='_compute_selection_option_count',
+        store=True
+    )
+    
+    
+    selection_option_1 = fields.Char(string="Opción 1")
+    selection_option_2 = fields.Char(string="Opción 2")
+    selection_option_3 = fields.Char(string="Opción 3")
+    selection_option_4 = fields.Char(string="Opción 4")
+    selection_option_5 = fields.Char(string="Opción 5")
+    selection_option_6 = fields.Char(string="Opción 6")
+    selection_option_7 = fields.Char(string="Opción 7")
+    selection_option_8 = fields.Char(string="Opción 8")
+    selection_option_9 = fields.Char(string="Opción 9")
+    selection_option_10 = fields.Char(string="Opción 10")
+    selection_option_11 = fields.Char(string="Opción 11")
+    selection_option_12 = fields.Char(string="Opción 12")
+    selection_option_13 = fields.Char(string="Opción 13")
+    selection_option_14 = fields.Char(string="Opción 14")
+    selection_option_15 = fields.Char(string="Opción 15")
+    selection_option_16 = fields.Char(string="Opción 16")
+    selection_option_17 = fields.Char(string="Opción 17")
+    selection_option_18 = fields.Char(string="Opción 18")
+    selection_option_19 = fields.Char(string="Opción 19")
+    selection_option_20 = fields.Char(string="Opción 20")
    
     default_value = fields.Text(string='Valor por Defecto')
-
+   
     sequence_number_id = fields.Integer(
-    string='Número de secuencia',
-    readonly=True,
-    copy=False,
-    default=0
+        string='Número de secuencia',
+        readonly=True,
+        copy=False,
+        default=0
     )
 
+    @api.depends('dynamic_field_type')
+    def _compute_selection_option_count(self):
+        """Calcula el número de opciones a mostrar"""
+        for wizard in self:
+            if wizard.dynamic_field_type == 'selection':
+                # Si ya tiene opciones definidas, mantener el count
+                if wizard.selection_option_count < 1:
+                    wizard.selection_option_count = 1
+            else:
+                wizard.selection_option_count = 0
+                
     @api.model_create_multi
     def create(self, vals_list):
-        # Buscar el MÁXIMO sequence_number_id existente (aunque haya huecos)
+        # Buscar el MÁXIMO sequence_number_id existente
         max_record = self.search([], order='sequence_number_id desc', limit=1)
         max_sequence = max_record.sequence_number_id if max_record else 0
         
         # Si no hay registros O el máximo es 0, empezar desde 1
         if max_sequence == 0:
-            # No hay registros o todos tienen sequence_number_id = 0
             if vals_list:
                 vals_list[0]['sequence_number_id'] = 1
                 # Asignar secuencia a los demás registros
@@ -70,7 +113,7 @@ class SubtaskActivity(models.Model):
     def action_open_delete_field_wizard(self):
         self.ensure_one()
         return {
-            'name': ('Eliminar Campo Dinámico de Actividad'),
+            'name': _('Eliminar Campo Dinámico de Actividad'),
             'type': 'ir.actions.act_window',
             'res_model': 'delete.field.subtask.wizard',
             'view_mode': 'form',
@@ -101,6 +144,10 @@ class SubtaskActivity(models.Model):
         if not self.dynamic_field_name or not self.dynamic_field_type:
             raise UserError(_("¡Error! El nombre técnico y tipo de campo son obligatorios"))
         
+        # Validación especial para campos de selección
+        if self.dynamic_field_type == 'selection' and not self.selection_options:
+            raise UserError(_("¡Error! Debe ingresar opciones para campos de selección"))
+        
         # Generar nombre técnico con prefijo
         field_name = self._generate_field_name()
         
@@ -108,17 +155,32 @@ class SubtaskActivity(models.Model):
         if self._field_exists(field_name):
             raise UserError(_("¡Error! El campo %s ya existe") % field_name)
         
+        # Preparar opciones de selección si es necesario
+        selection_values = False
+        if self.dynamic_field_type == 'selection' and self.selection_options:
+            options = []
+            for line in self.selection_options.split('\n'):
+                line = line.strip()
+                if line and ':' in line:
+                    key, val = line.split(':', 1)
+                    options.append((key.strip(), val.strip()))
+            if options:
+                selection_values = str(options)
+        
         # Crear el campo en la base de datos
         self._create_field_in_db(field_name)
         
         # Crear registro en ir.model.fields
-        self._create_ir_model_field(field_name)
+        self._create_ir_model_field(field_name, selection_values)
         
         # Actualizar vistas
         self._update_views(field_name)
         
         # Forzar actualización del modelo
         self._reload_model()
+        
+        # Almacenar metadatos
+        self._store_field_metadata(field_name, selection_values)
         
         return {
             'type': 'ir.actions.client',
@@ -149,6 +211,9 @@ class SubtaskActivity(models.Model):
             'selection': 'VARCHAR(255)'
         }.get(self.dynamic_field_type)
         
+        if not column_type:
+            raise UserError(_("Tipo de campo no válido: %s") % self.dynamic_field_type)
+        
         try:
             self.env.cr.execute(f"""
                 ALTER TABLE subtask_activity 
@@ -157,9 +222,12 @@ class SubtaskActivity(models.Model):
             _logger.info("Columna %s creada en BD", field_name)
         except Exception as e:
             _logger.error("Error creando columna: %s", str(e))
-            raise UserError(_("Error técnico al crear el campo. Consulte los logs."))
+            if "already exists" in str(e):
+                raise UserError(_("El campo '%s' ya existe en la base de datos.") % field_name)
+            else:
+                raise UserError(_("Error técnico al crear el campo. Consulte los logs."))
 
-    def _create_ir_model_field(self, field_name):
+    def _create_ir_model_field(self, field_name, selection_values=False):
         """Crea el registro en ir.model.fields"""
         model_id = self.env['ir.model'].search([('model', '=', 'subtask.activity')], limit=1)
         if not model_id:
@@ -175,15 +243,8 @@ class SubtaskActivity(models.Model):
         }
         
         # Manejar campos de selección
-        if self.dynamic_field_type == 'selection' and self.selection_options:
-            options = []
-            for line in self.selection_options.split('\n'):
-                line = line.strip()
-                if line and ':' in line:
-                    key, val = line.split(':', 1)
-                    options.append((key.strip(), val.strip()))
-            if options:
-                field_vals['selection'] = str(options)
+        if self.dynamic_field_type == 'selection' and selection_values:
+            field_vals['selection'] = selection_values
         
         try:
             self.env['ir.model.fields'].create(field_vals)
@@ -192,8 +253,54 @@ class SubtaskActivity(models.Model):
             _logger.error("Error registrando campo: %s", str(e))
             raise UserError(_("Error al registrar el campo. Consulte los logs."))
 
+    def _store_field_metadata(self, field_name, selection_values=False):
+        """Store field configuration in JSON con manejo de datetime"""
+        try:
+            # Convertir datetime a string ISO para serialización JSON
+            created_at = fields.Datetime.now()
+            if hasattr(created_at, 'isoformat'):
+                created_at = created_at.isoformat()
+            
+            field_data = {
+                'name': field_name,
+                'label': self.dynamic_field_label,
+                'type': self.dynamic_field_type,
+                'created_at': created_at,
+                'created_by': self.env.user.id,
+            }
+            
+            # Añadir opciones de selección si es el caso
+            if self.dynamic_field_type == 'selection' and selection_values:
+                # Convertir de string a lista si es necesario
+                if isinstance(selection_values, str):
+                    try:
+                        selection_values = eval(selection_values)
+                    except:
+                        selection_values = []
+                
+                field_data['options'] = selection_values
+            
+            # Manejar datos existentes
+            current_data = {}
+            if self.dynamic_fields_data:
+                try:
+                    current_data = json.loads(self.dynamic_fields_data)
+                except json.JSONDecodeError:
+                    current_data = {}
+                    _logger.warning("Invalid JSON in dynamic_fields_data, resetting")
+            
+            # Actualizar con nuevos datos
+            current_data[field_name] = field_data
+            
+            # Serializar usando el método seguro
+            self.dynamic_fields_data = json.dumps(current_data, default=str)
+            
+        except Exception as e:
+            _logger.error("Metadata storage failed: %s", str(e))
+            raise UserError(_("Error storing field metadata: %s") % str(e))
+
     def _update_views(self, field_name):
-        """Actualiza las vistas de subtask.activity y subtask.board para incluir el nuevo campo"""
+        """Actualiza las vistas de subtask.activity para incluir el nuevo campo"""
         try:
             field_label = self.dynamic_field_label or self.dynamic_field_name
 
@@ -208,16 +315,17 @@ class SubtaskActivity(models.Model):
                         </xpath>
                     </data>
                     """
+                    
                 existing_planner_view = self.env['ir.ui.view'].search([
                     ('name', '=', f'subtask.planner.form.dynamic.{field_name}'),
-                    ('model', '=', 'subtask.board')  # Modelo CORRECTO
+                    ('model', '=', 'subtask.board')
                 ])
                 if existing_planner_view:
                     existing_planner_view.unlink()
 
                 self.env['ir.ui.view'].create({
                     'name': f'subtask.planner.form.dynamic.{field_name}',
-                    'model': 'subtask.board',  # Modelo CORRECTO
+                    'model': 'subtask.board',
                     'inherit_id': planner_form_view.id,
                     'arch': arch_planner_form,
                     'type': 'form',
@@ -225,7 +333,7 @@ class SubtaskActivity(models.Model):
                 })
                 _logger.info("✅ Vista planner form (árbol) actualizada con campo %s", field_name)
     
-           
+            # 2. Vista Form de subtask.activity - view_subtask_activity_form
             form_view_2 = self.env.ref('task_planner.view_subtask_activity_form', raise_if_not_found=False)
             if form_view_2:
                 arch_form_2 = f"""
@@ -283,25 +391,6 @@ class SubtaskActivity(models.Model):
             _logger.error("❌ Error actualizando vistas: %s", str(e))
             raise UserError(_("Error al actualizar vistas. Consulte los logs."))
 
-    def _force_view_reload(self):
-        """Fuerza la recarga de vistas limpiando cachés específicos"""
-        try:
-            # Limpiar cachés críticos
-            self.env.registry.clear_cache()
-            self.env['ir.ui.view'].clear_caches()
-
-            # Recargar el modelo en el registro
-            if hasattr(self.env.registry, 'setup_models'):
-                self.env.registry.setup_models(self.env.cr)
-
-            # Forzar recarga de vistas
-            self.env['ir.ui.view'].invalidate_model(['arch_db'])
-
-            _logger.info("✅ Vistas recargadas forzadamente")
-
-        except Exception as e:
-            _logger.error("❌ Error en recarga forzada de vistas: %s", str(e))
-            
     def _reload_model(self):
         """Fuerza la recarga del modelo en el registro"""
         try:

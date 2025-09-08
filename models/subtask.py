@@ -3,6 +3,7 @@ from odoo.exceptions import ValidationError, UserError
 from .boards import STATES
 import logging
 import json
+from datetime import datetime
 import re
 from psycopg2.extensions import AsIs
 from datetime import datetime
@@ -47,6 +48,7 @@ class SubtaskBoard(models.Model):
         ('float', 'Decimal'),
         ('boolean', 'Boolean'),
         ('date', 'Date'),
+        ('selection','Selection'),
         ('datetime', 'Datetime'),
         ],
         string="Field Type"
@@ -64,13 +66,13 @@ class SubtaskBoard(models.Model):
         related='task_id.allowed_member_ids',
         readonly=True
     )
-
+   
     has_dynamic_fields = fields.Boolean(
         string="Has Dynamic Fields",
         compute='_compute_has_dynamic_fields',
         store=False
     )
-
+   
     department_id = fields.Many2one('hr.department', string='Departamento', compute='_compute_department_id', store=True)
 
     min_sequence = fields.Integer(
@@ -231,32 +233,35 @@ class SubtaskBoard(models.Model):
     # ===========================
 
     def action_create_dynamic_field(self):
-        """Método para crear campos dinámicos"""
+        """Método para crear campos dinámicos con soporte para selección"""
+        self.ensure_one()
         if not all([self.dynamic_field_name, self.dynamic_field_type]):
             raise UserError(_("Field name and type are required"))
-    
+
         field_name = self._generate_valid_field_name(self.dynamic_field_name)
         field_label = self.dynamic_field_label or self.dynamic_field_name.replace('_', ' ').title()
-    
+
+        # Obtener opciones de selección del contexto si existen
+        selection_values = self.env.context.get('selection_values', False)
+
         try:
             # 1. Crear el campo dinámico
             self._create_field_in_model(
                 field_name,
                 field_label,
                 self.dynamic_field_type,
-                
+                selection_values  # Pasar las opciones de selección
             )
-    
+
             # 2. Actualizar TODAS las subtareas existentes
             all_subtasks = self.env['subtask.board'].search([])
-            
-           
+
             # 3. Actualizar la vista
             self._update_tree_view(field_name, field_label)
-            self._store_field_metadata(field_name)
-    
+            self._store_field_metadata(field_name, selection_values)
+
             return {'type': 'ir.actions.client', 'tag': 'reload'}
-    
+
         except Exception as e:
             _logger.error("Field creation error: %s", str(e))
             raise UserError(_("Field creation failed: %s") % str(e))
@@ -268,8 +273,8 @@ class SubtaskBoard(models.Model):
             clean_name = f'x_{clean_name}'
         return clean_name
 
-    def _create_field_in_model(self, field_name, field_label, field_type):
-        """Create technical field definition"""
+    def _create_field_in_model(self, field_name, field_label, field_type, selection_options=False):
+        """Create technical field definition con soporte para selección"""
         model = self.env['ir.model'].sudo().search([('model', '=', self._name)])
         if not model:
             raise UserError(_("Model not found in system"))
@@ -284,7 +289,9 @@ class SubtaskBoard(models.Model):
             'required': False,
         }
 
-       
+        # Para campos de selección, añadir las opciones
+        if field_type == 'selection' and selection_options:
+            field_vals['selection'] = selection_options
 
         self.env['ir.model.fields'].sudo().create(field_vals)
         self._add_column_to_table(field_name, field_type)
@@ -310,30 +317,31 @@ class SubtaskBoard(models.Model):
         """
         self._cr.execute(query)
 
-    def _store_field_metadata(self, field_name):
-        """Store field configuration in JSON"""
+    def _store_field_metadata(self, field_name, selection_values=False):
+        """Store field configuration in JSON incluyendo opciones de selección"""
         try:
             field_data = {
                 'name': field_name,
                 'label': self.dynamic_field_label,
                 'type': self.dynamic_field_type,
-                'created_at': fields.Datetime.now(),
+                'created_at': datetime.now().isoformat(),  # Convertir a string ISO
                 'created_by': self.env.user.id,
             }
-      
-      
+            
+            # Resto del código de serialización...
             current_data = {}
             if self.dynamic_fields_data:
                 try:
                     current_data = json.loads(self.dynamic_fields_data)
-                except:
+                except json.JSONDecodeError:
                     current_data = {}
-      
+            
             current_data[field_name] = field_data
             self.dynamic_fields_data = json.dumps(current_data)
-      
+            
         except Exception as e:
             _logger.error("Metadata storage failed: %s", str(e))
+            raise UserError(_("Error storing field metadata: %s") % str(e))
 
     def _get_tree_widget_for_field(self):
         """Get appropriate widget for field type"""
