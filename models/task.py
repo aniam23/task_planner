@@ -14,12 +14,11 @@ class TaskBoard(models.Model):
     _description = 'Task Board'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _rec_name = 'name'
-    
+    _order = 'sequence_number'
     # --------------------------------------------
     # BASIC FIELDS
     # --------------------------------------------
     name = fields.Char(string='Grupo', required=True, tracking=True)
-    sequence = fields.Integer(string='Sequence', default=10)
     completion_date = fields.Datetime(string='Due Date')
     department_id = fields.Many2one(
         'boards.planner', 
@@ -102,12 +101,35 @@ class TaskBoard(models.Model):
     selection_options = fields.Text(string='Opciones de Selección')
     dynamic_field_list = fields.Text(string='Dynamic Fields List', compute='_compute_dynamic_fields')
     field_info = fields.Text(string='Ingresar datos para el campo')
-    sequence_number = fields.Integer(string='Sequence Number')
+    min_sequence = fields.Integer(
+    compute='_compute_sequence_number',
+    store=False,
+    string="Sequence Mínimo"
+    )
     task_id = fields.Many2one('task.board', string='Task Board')
     activity_line_ids = fields.One2many('mail.activity', 'res_id', string='Activities')
     # --------------------------------------------
     # COMPUTE METHODS
     # --------------------------------------------
+    
+    sequence_number = fields.Integer(
+    string='Número de secuencia',
+    readonly=True,
+    compute='_compute_sequence_number',
+    store=True,
+    copy=False,
+    )
+    @api.depends('min_sequence')
+    def _compute_sequence_number(self):
+        all_records = self.search([], order='id asc')
+        sequence_map = {}
+        
+        for index, record in enumerate(all_records, start=1):  # start=1 para comenzar desde 1
+            sequence_map[record.id] = index  # 1, 2, 3, 4, ...
+        
+        for record in self:
+            record.sequence_number = sequence_map.get(record.id, 1)  # default 1
+
     @api.depends('department_id')
     def _compute_allowed_members(self):
         for task in self:

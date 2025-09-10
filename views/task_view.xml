@@ -62,58 +62,7 @@
                 </form>
             </field>
         </record>
-        <!-- Vista para editar campos del kanban -->
-        <record id="view_task_board_form" model="ir.ui.view">
-            <field name="name">task.board.form</field>
-            <field name="model">task.board</field>
-            <field name="arch" type="xml">
-                <form string="Editar Tarea">
-                    <sheet>
-                        <div class="oe_title">
-                            <h1>
-                                <field name="name" string="Nombre" placeholder="Ingrese el nombre de la tarea"/>
-                            </h1>
-                        </div>
-                        
-                        <group>
-                            <!-- Sección 1: Información básica -->
-                            <group string="Información Básica" col="4">
-                                <field name="person" string="Responsable" 
-                                       widget="many2one_avatar_user"
-                                       options="{'no_open': True}"
-                                       context="{'search_default_active_employee': 1}"/>
-                                <field name="state" string="Estado"/>
-                                <field name="completion_date" string="Fecha Límite" widget="date"/>
-                            </group>
-                        
-                            <!-- Sección 2: Progreso -->
-                            <group string="Progreso" col="4">
-                                <field name="progress" string="Progreso (%)" widget="progressbar" options="{'edit': true}"/>
-                                <field name="completed_subtasks" string="Subtareas completadas"/>
-                                <field name="total_subtasks" string="Total subtareas"/>
-                                <field name="show_subtasks" string="Mostrar subtareas" invisible="1"/>
-
-                            </group>
-                            
-                            <!-- Campos ocultos necesarios -->
-                            <field name="allowed_member_ids" invisible="1"/>
-                            <field name="has_dynamic_fields" invisible="1"/>
-                            
-                            <!-- Sección dinámica -->
-                            <group string="Campos Adicionales" attrs="{'invisible': [('has_dynamic_fields', '=', False)]}" col="4">
-                                <!-- Espacio para campos dinámicos -->
-                            </group>
-                        </group>
-                    </sheet>
-                    
-                    <footer>
-                        <button name="action_save" string="Guardar" type="object" class="btn-primary"/>
-                        <button string="Cancelar" special="cancel" class="btn-secondary"/>
-                    </footer>
-                </form>
-            </field>
-        </record>
-       
+        
         <!-- Vista de árbol para subtareas -->
         <record id="view_subtask_tree" model="ir.ui.view">
             <field name="name">subtask.board.tree</field>
@@ -160,10 +109,12 @@
             <field name="model">task.board</field>
             <field name="priority">10</field>
             <field name="arch" type="xml">
-                <tree edit="True" create="True" default_order="name" 
+                <tree edit="True" create="True" default_order="sequence_number" 
                       decoration-muted="state == 'cancelado'" editable="top">
                     <!-- Campos que se mostrarán como columnas -->
                     <field name="name"/>
+                    
+                    <field name="sequence_number" string="id" />
                     <field name="department_id" string="Departamento" invisible="1" />
                     <field name="person" widget="many2one_avatar_user"/>
                     <field name="state" widget="badge"/>
@@ -174,13 +125,11 @@
                     <field name="completion_date" widget="daterange"/>
                     <!-- Botones de acción -->
                     <button name="action_view_subtasks" string="Ver Tareas" icon="fa-eye" type="object" class="oe_highlight"/>
-                    <button name="action_open_field_tree_groups_wizard" string="Añadir Columna" icon="fa-plus" type="object"/>
-                    <button name="action_open_delete_board_file_wizard" string="Eliminar Columna" icon="fa-trash" type="object"/>
+                    <button name="action_open_field_tree_groups_wizard" string="Añadir Columna" icon="fa-plus" type="object" attrs="{'invisible': [('sequence_number', '!=',1 )]}"/>
+                    <button name="action_open_delete_board_file_wizard" string="Eliminar Columna" icon="fa-trash" type="object" attrs="{'invisible': [('sequence_number', '!=',1 )]}"/>
                 </tree>
             </field>
         </record>
-
-        
 
         <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
             <field name="name">Tasks Board</field>
