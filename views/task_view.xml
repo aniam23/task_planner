@@ -119,14 +119,14 @@
             <field name="name">subtask.board.tree</field>
             <field name="model">subtask.board</field>
             <field name="arch" type="xml">
-                <tree  string="Tareas"
-                      edit="true"
-                      create="true"
+                <tree  edit="True" create="True" default_order="name" 
+                      decoration-muted="state == 'cancelado'" editable="top" string="Tareas"
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"
                       decoration-success="state == 'done'">
                     <field name="sequence" widget="handle" string="Secuencia" />
+                    <field name ="allowed_member_ids" invisible="1"/>
                     <field name="sequence_number" string="id" invisible="1" />
                     <field name="name" string="Nombre de la tarea" options="{'no_open': True}"/>
                     <field name="task_id" string="Tarea Padre" invisible="1" options="{'no_open': True}"/>
@@ -179,8 +179,8 @@
                 </tree>
             </field>
         </record>
-        <!-- Acción de ventana -->
-       
+
+        
 
         <record id="task_planner.activity_tasks_action" model="ir.actions.act_window">
             <field name="name">Tasks Board</field>

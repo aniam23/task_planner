@@ -4,8 +4,8 @@
         <field name="name">subtask.activity.tree</field>
         <field name="model">subtask.activity</field>
         <field name="arch" type="xml">
-            <tree edit="True"
-                      create="True"
+            <tree  edit="True" create="True" default_order="name" 
+                      decoration-muted="state == 'cancelado'" editable="top"
                       decoration-danger="state == 'stuck'"
                       decoration-warning="state == 'new'"
                       decoration-info="state == 'in_progress'"

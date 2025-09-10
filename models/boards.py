@@ -17,7 +17,7 @@ class Boards(models.Model):
     pick_from_dept = fields.Boolean('Solo miembros del departamento')
     member_ids = fields.Many2many('hr.employee', string='Miembros')
     task_ids = fields.One2many('task.board', 'department_id', invisible=True, string='Grupos')
-
+    
     @api.depends('department_id', 'department_id.manager_id')
     def _compute_responsible_person(self):
         for record in self:
@@ -83,7 +83,7 @@ class Boards(models.Model):
             'name': 'Editar Tablero',
             'res_model': 'boards.planner',
             'res_id': self.id,
-            'view_mode': 'form,tree',
+            'view_mode': 'form',
             'target': 'current',
         }
 

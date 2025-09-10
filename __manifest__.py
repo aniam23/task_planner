@@ -20,7 +20,7 @@
     'data': [
     'security/ir.model.access.csv',  
     'security/boards_security.xml', 
-    'views/dinamic_field_wizard_view.xml', 
+    'views/dynamic_field_wizard_view.xml', 
     'views/boards_view.xml',   
     'views/delete_field_wizard_view.xml',
     'views/delete_field_subtask_view.xml',      

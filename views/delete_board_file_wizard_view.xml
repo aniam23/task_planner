@@ -13,7 +13,7 @@
                                    string="Campo a eliminar"
                                    required="1"
                                    options="{'no_open': true, 'no_create': true}"
-                                   domain="[('model','=','subtask.activity'),('state','=','manual'),('name','like','x_%')]"/>
+                                   domain="[('model','=','task.board'),('state','=','manual'),('name','like','x_%')]"/>
                         </group>
                     </group>
                 </sheet>
@@ -30,9 +30,9 @@
         </field>
     </record>
 
-    <record id="action_open_delete_dynamic_field_activity_wizard" model="ir.actions.act_window">
+    <record id="action_open_delete_board_file_wizard" model="ir.actions.act_window">
         <field name="name">Eliminar Campo Dinámico de Actividad</field>
-        <field name="res_model">delete.dynamic.field.wizard</field>
+        <field name="res_model">delete.board.file.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
     </record>

@@ -28,6 +28,9 @@ class SubtaskBoard(models.Model):
     files = fields.Many2many('ir.attachment', string="Archivos")
     state = fields.Selection(STATES, default="new", string="Estado", tracking=True)
     field_info = fields.Text(string="Ingresar datos para el campo") 
+    progress = fields.Integer(string="Progreso")
+    completed_subtasks = fields.Integer(string="Subtareas Completadas")
+    total_subtasks = fields.Integer(string="Total de Subtareas")
     
     # Relational fields
     task_id = fields.Many2one('task.board', string='Parent Task', ondelete='cascade')
@@ -66,13 +69,13 @@ class SubtaskBoard(models.Model):
         related='task_id.allowed_member_ids',
         readonly=True
     )
-   
+
     has_dynamic_fields = fields.Boolean(
         string="Has Dynamic Fields",
         compute='_compute_has_dynamic_fields',
         store=False
     )
-   
+
     department_id = fields.Many2one('hr.department', string='Departamento', compute='_compute_department_id', store=True)
 
     min_sequence = fields.Integer(
@@ -195,12 +198,13 @@ class SubtaskBoard(models.Model):
             'type': 'ir.actions.act_window',
             'res_model': 'dynamic.field.wizard',
             'view_mode': 'form',
+            'view_id': self.env.ref('task_planner.view_dynamic_field_wizard_form').id,
             'target': 'new',
             'context': {
                 'default_subtask_id': self.id,
             }
         }
-
+        
     def action_open_delete_field_wizard(self):
         """Abre wizard para eliminar campos dinámicos"""
         self.ensure_one()

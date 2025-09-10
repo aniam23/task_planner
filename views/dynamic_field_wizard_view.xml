@@ -11,7 +11,7 @@
                             <field name="dynamic_field_name"/>
                             <field name="dynamic_field_label"/>
                             <field name="dynamic_field_type"/>
-                            <field name="selection_option_count"/>
+                            <field name="selection_option_count" invisible="1"/>
                             <field name="field_info"/>
                         </group>
                         <group string="Contexto">

@@ -3,7 +3,7 @@ from . import task
 from . import subtask
 from . import subtask_activity
 from . import delete_field_subtask_wizard
-from . import dinamic_field_wizard
+from . import dynamic_field_wizard
 from . import add_field_subtask_wizard
 from . import delete_dynamic_field_wizard
 from . import field_tree_groups_wizard

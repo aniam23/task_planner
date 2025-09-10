@@ -443,7 +443,7 @@ class AddFieldSubtaskWizard(models.TransientModel):
         except Exception as e:
             _logger.error("❌ Error actualizando vistas: %s", str(e))
             raise UserError(_("Error al actualizar vistas. Consulte los logs."))
-
+   
     def _safe_cache_clear(self):
         """Limpieza segura de cachés"""
         try:
@@ -454,7 +454,7 @@ class AddFieldSubtaskWizard(models.TransientModel):
             
             # Limpiar cachés de vistas
             self.env['ir.ui.view'].clear_caches()
-            
+              
             _logger.info("✅ Cachés limpiados correctamente")
             
         except Exception as e:

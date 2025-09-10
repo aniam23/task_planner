@@ -34,7 +34,11 @@ class DynamicFieldWizard(models.TransientModel):
         compute='_compute_selection_option_count',
         store=True
     )
-    
+    board_id = fields.Many2one(
+        'subtask.board',
+        string="Subtarea Relacionada",
+        default=lambda self: self._default_subtask_id()
+    )
     
     selection_option_1 = fields.Char(string="Opción 1")
     selection_option_2 = fields.Char(string="Opción 2")
@@ -115,7 +119,7 @@ class DynamicFieldWizard(models.TransientModel):
             'target': 'new',
             'context': self.env.context,
         }
-
+     
     def _get_selection_options(self):
         """Obtiene todas las opciones de selección ingresadas"""
         options = []
@@ -125,27 +129,28 @@ class DynamicFieldWizard(models.TransientModel):
                 # Usar el mismo valor para clave y etiqueta
                 options.append((option_value, option_value))
         return options
-
+    
+   
     def action_create_dynamic_field(self):
         self.ensure_one()
         if not self.subtask_id:
             raise UserError(_("¡Error! Debe seleccionar una subtarea primero"))
-        
+
         # Validación de campos requeridos
         if not self.dynamic_field_name or not self.dynamic_field_type:
             raise UserError(_("¡Error! El nombre técnico y tipo de campo son obligatorios"))
-        
+
         # Validación especial para campos de selección
         if self.dynamic_field_type == 'selection':
             options = self._get_selection_options()
             if not options:
                 raise UserError(_("¡Error! Debe agregar al menos una opción para campos de tipo selección"))
-            
+
             # Preparar las opciones en formato Odoo
             selection_values = str(options)
         else:
             selection_values = False
-        
+
         # Pasa los valores del wizard al subtask
         self.subtask_id.write({
             'dynamic_field_name': self.dynamic_field_name,
@@ -153,7 +158,7 @@ class DynamicFieldWizard(models.TransientModel):
             'dynamic_field_type': self.dynamic_field_type,
             'field_info': self.field_info,
         })
-    
+
         # Llama al método en la subtarea pasando las opciones de selección
         return self.subtask_id.with_context(
             selection_values=selection_values
